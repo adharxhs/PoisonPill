@@ -35,6 +35,11 @@ Offsets are **UTF-8 byte offsets**, always on character boundaries. They index t
 string passed to the engine. When the engine truncates oversize input, findings
 only cover the prefix and their offsets remain valid for the original string.
 
+The hard cap is **512 KiB** (524,288 bytes, roughly 80,000 words). Input beyond
+the cap is not analysed: the engine cuts on a character boundary, sets
+`truncated`, and returns findings for the prefix only. A caller should surface
+that state rather than retrying with the same text.
+
 `raw_text == input[start_offset..end_offset]` is an invariant, asserted by tests.
 
 ### Inversion values
@@ -71,7 +76,7 @@ The engine detects the address; generating mail is out of scope for the engine.
 | `schema_version` | string | `"1.0"` for this contract. |
 | `findings` | `ClauseFinding[]` | Sorted, as above. |
 | `poison_index` | number | Document-level `P_I`, clamped to `[0, 100]`, rounded to two decimals. |
-| `truncated` | boolean | Input exceeded the hard cap; only a prefix was analysed. |
+| `truncated` | boolean | Input exceeded the 512 KiB cap; only a prefix was analysed. |
 
 `P_I = min(100, Σ w_k · μ(C_k) · τ(C_k))`, computed once at document level.
 `μ` is `2.0` when the clause grants unilateral discretion, else `1.0`. `τ` is

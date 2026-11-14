@@ -15,6 +15,12 @@ use crate::rules::{RuleMatch, RuleRegistry};
 use crate::scoring::poison_index;
 use crate::tokenizer::sentences;
 
+/// Hard limit on analysed input. Anything larger is truncated on a UTF-8
+/// boundary and reported via `DocumentReport::truncated`. This bounds worst-case
+/// work for pathological pages while leaving any realistic contract untouched.
+/// 512 KiB is roughly 80,000 words.
+pub const MAX_INPUT_BYTES: usize = 512 * 1024;
+
 #[wasm_bindgen]
 pub struct LegalEngine {
     registry: RuleRegistry,
@@ -75,9 +81,10 @@ pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
 /// Analyse with an arbitrary registry. This is the function the guarantee test
 /// uses to prove that a synthetic category can be registered as data.
 pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
+    let (input, truncated) = truncate_input(raw_text, MAX_INPUT_BYTES);
     let mut findings = Vec::new();
 
-    for sentence in sentences(raw_text) {
+    for sentence in sentences(input) {
         let clause = sentence.text;
         let mut emitted_categories: Vec<&'static str> = Vec::new();
 
@@ -115,8 +122,21 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
         schema_version: SCHEMA_VERSION.to_string(),
         poison_index: poison_index(&findings),
         findings,
-        truncated: false,
+        truncated,
     }
+}
+
+/// Cut to at most `cap` bytes without splitting a UTF-8 character. The returned
+/// prefix always satisfies `raw_text.is_char_boundary(prefix.len())`.
+fn truncate_input(text: &str, cap: usize) -> (&str, bool) {
+    if text.len() <= cap {
+        return (text, false);
+    }
+    let mut end = cap;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    (&text[..end], true)
 }
 
 /// One sentence, built only from matched rule data.
@@ -214,6 +234,44 @@ mod tests {
         };
         let many = vec![finding; 40];
         assert_eq!(poison_index(&many), 100.0);
+    }
+
+    #[test]
+    fn oversize_document_is_truncated_and_keeps_offset_invariants() {
+        let clause = "You waive any right to a class action. ";
+        let text = clause.repeat(MAX_INPUT_BYTES / clause.len() + 10);
+        let report = analyze_with(&RuleRegistry::builtin(), &text);
+
+        assert!(report.truncated);
+        assert!(!report.findings.is_empty());
+        for finding in &report.findings {
+            assert!(finding.end_offset <= MAX_INPUT_BYTES);
+            assert_eq!(
+                &text[finding.start_offset..finding.end_offset],
+                finding.raw_text
+            );
+        }
+    }
+
+    #[test]
+    fn input_at_the_cap_is_not_truncated() {
+        let text = "a".repeat(MAX_INPUT_BYTES);
+        let (prefix, truncated) = truncate_input(&text, MAX_INPUT_BYTES);
+        assert!(!truncated);
+        assert_eq!(prefix.len(), MAX_INPUT_BYTES);
+    }
+
+    #[test]
+    fn truncation_never_splits_a_character() {
+        let mut text = "a".repeat(MAX_INPUT_BYTES - 1);
+        text.push('é');
+        assert!(text.len() > MAX_INPUT_BYTES);
+
+        let (prefix, truncated) = truncate_input(&text, MAX_INPUT_BYTES);
+        assert!(truncated);
+        assert_eq!(prefix.len(), MAX_INPUT_BYTES - 1);
+        assert!(text.is_char_boundary(prefix.len()));
+        assert!(prefix.chars().all(|character| character == 'a'));
     }
 
     #[test]

@@ -15,7 +15,7 @@ pub mod rules;
 pub mod scoring;
 pub mod tokenizer;
 
-pub use deontic::{analyze, analyze_with, LegalEngine};
+pub use deontic::{analyze, analyze_with, LegalEngine, MAX_INPUT_BYTES};
 pub use model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, EngineError, ErrorCode, InversionShape,
     Modality, SCHEMA_VERSION,

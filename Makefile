@@ -8,12 +8,13 @@ DIST_DIR     := dist
 WASM_PKG     := $(ENGINE_DIR)/pkg
 WASM_ARTIFACT := $(PUBLIC_DIR)/engine.wasm
 
-.PHONY: all engine extension assets clean check verify fmt clippy test budget goldens
+.PHONY: all engine extension assets clean check verify fmt clippy test budget parity measure-wasm heldout goldens
 
 all: engine extension
 
-## Full gate: formatting, lints, unit/integration tests, wasm build, budgets.
-verify: fmt clippy test budget
+## Full gate: formatting, lints, unit/integration tests, wasm build, budgets,
+## and native/Wasm parity.
+verify: fmt clippy test budget parity
 
 ## Compile the Rust core to WebAssembly and copy loader + binary into public/.
 ## `no-modules` keeps the classic Worker (importScripts) path working.
@@ -67,6 +68,19 @@ budget: engine
 ## write goldens. Held-out fixtures are deliberately excluded.
 goldens:
 	./scripts/update-goldens.sh
+
+## Compare the shipped Wasm output with the native goldens, byte for byte.
+## Run after `make engine`; part of `verify`.
+parity:
+	node scripts/wasm-parity.mjs
+
+## Record 10k-word latency through the shipped Wasm artifact.
+measure-wasm:
+	node scripts/measure-wasm.mjs
+
+## Print the one-shot held-out report (redirect to fixtures/heldout/REPORT.md).
+heldout:
+	node scripts/run-heldout.mjs
 
 clean:
 	rm -rf $(DIST_DIR) $(WASM_PKG) $(ENGINE_DIR)/target
