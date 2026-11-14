@@ -1,0 +1,22 @@
+# Build output
+/dist/
+/engine/target/
+/engine/pkg/
+/extension/public/*.wasm
+/extension/public/*.js
+/extension/public/*.wasm.d.ts
+
+# Dependencies
+node_modules/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Tooling caches
+.codelens/
+
+# Logs
+*.log
