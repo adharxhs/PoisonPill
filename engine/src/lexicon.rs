@@ -128,3 +128,45 @@ pub const COMPLIANCE_NEGATIONS: &[&str] = &[
     "is not",
     "are not",
 ];
+
+/// Actions that constitute exercising an opt-out.
+pub const OPT_OUT_ACTIONS: &[&str] = &[
+    "opt out",
+    "opt-out",
+    "optout",
+    "reject this arbitration",
+    "reject the arbitration",
+    "reject arbitration",
+    "exclude yourself",
+    "written notice",
+    "written objection",
+    "notify us in writing",
+    "send written notice",
+    "provide written notice",
+    "email us",
+    "email written notice",
+    "mail written notice",
+];
+
+/// Explicit windows. Numeric windows are additionally detected by shape.
+pub const OPT_OUT_WINDOW_PHRASES: &[&str] = &[
+    "at any time",
+    "within a reasonable time",
+    "before the effective date",
+    "within thirty (30) days",
+    "within sixty (60) days",
+    "within ninety (90) days",
+    "no later than thirty (30) days",
+    "no later than sixty (60) days",
+];
+
+/// Word-number day windows. Digits are detected separately.
+pub const OPT_OUT_DAY_WORDS: &[&str] = &[
+    "ten days",
+    "fifteen days",
+    "twenty days",
+    "thirty days",
+    "forty-five days",
+    "sixty days",
+    "ninety days",
+];

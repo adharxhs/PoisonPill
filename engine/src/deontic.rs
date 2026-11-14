@@ -10,6 +10,7 @@ use crate::exceptions::classify;
 use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
 };
+use crate::optout::detect as detect_opt_out;
 use crate::rules::{RuleMatch, RuleRegistry};
 use crate::scoring::poison_index;
 use crate::tokenizer::sentences;
@@ -78,7 +79,6 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
 
     for sentence in sentences(raw_text) {
         let clause = sentence.text;
-        let normalized = clause.to_lowercase();
         let mut emitted_categories: Vec<&'static str> = Vec::new();
 
         for rule_match in registry.matches(clause) {
@@ -93,7 +93,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
             }
             emitted_categories.push(rule_match.category_id);
 
-            let opt_out_available = has_opt_out_window(&normalized);
+            let opt_out = detect_opt_out(clause);
             findings.push(ClauseFinding {
                 category: rule_match.category_id.to_string(),
                 label: rule_match.label.to_string(),
@@ -103,12 +103,8 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 severity: rule_match.weight,
                 start_offset: sentence.start,
                 end_offset: sentence.end,
-                opt_out_available,
-                opt_out_target: if opt_out_available {
-                    extract_opt_out_address(clause)
-                } else {
-                    None
-                },
+                opt_out_available: opt_out.available,
+                opt_out_target: opt_out.target,
                 inversion,
                 reason: reason_for(&rule_match, inversion),
             });
@@ -146,32 +142,6 @@ fn reason_for(rule_match: &RuleMatch, inversion: InversionShape) -> String {
 /// already import from the engine entry point.
 pub use crate::scoring::poison_index as score;
 
-fn has_opt_out_window(normalized: &str) -> bool {
-    normalized.contains("opt-out")
-        || normalized.contains("opt out")
-        || normalized.contains("30 days")
-        || normalized.contains("thirty (30)")
-}
-
-/// Pull the first email-shaped token out of an opt-out sentence.
-fn extract_opt_out_address(text: &str) -> Option<String> {
-    text.split_whitespace()
-        .map(|word| {
-            word.trim_matches(|c: char| {
-                !c.is_alphanumeric() && c != '@' && c != '.' && c != '-' && c != '_'
-            })
-        })
-        .map(|word| word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']', '>']))
-        .find(|word| {
-            word.contains('@')
-                && word
-                    .split('@')
-                    .nth(1)
-                    .is_some_and(|domain| domain.contains('.'))
-        })
-        .map(str::to_string)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,6 +157,16 @@ mod tests {
         assert!(findings
             .iter()
             .any(|f| f.opt_out_target.as_deref() == Some("arb@example.com")));
+    }
+
+    #[test]
+    fn bare_address_without_a_window_is_not_an_opt_out() {
+        let doc = "You waive any right to a class action; questions go to legal@example.com.";
+        let findings = analyze(doc);
+        assert!(!findings.is_empty());
+        assert!(findings
+            .iter()
+            .all(|finding| !finding.opt_out_available && finding.opt_out_target.is_none()));
     }
 
     #[test]

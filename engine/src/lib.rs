@@ -10,6 +10,7 @@ pub mod deontic;
 pub mod exceptions;
 pub mod lexicon;
 pub mod model;
+pub mod optout;
 pub mod rules;
 pub mod scoring;
 pub mod tokenizer;
@@ -19,6 +20,7 @@ pub use model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, EngineError, ErrorCode, InversionShape,
     Modality, SCHEMA_VERSION,
 };
+pub use optout::OptOut;
 pub use rules::{Predicate, RuleRegistry, RuleSpec};
 pub use scoring::{finding_contribution, poison_index};
 

@@ -56,6 +56,12 @@ Markers inside quoted text are ignored.
 `no later than sixty (60) days`, `at any time`, …). A bare email address with no
 stated window never qualifies and `opt_out_target` is absent.
 
+`opt_out_target` is the first valid address in the clause, lowercased and rebuilt
+from its parts. Common obfuscation (`[at]`, `(at)`, ` at `, `[dot]`, `(dot)`,
+` dot `) is accepted. Malformed addresses and prose such as `email us at
+example.com` do not produce a target. Detection is clause-scoped: the action and
+the window must appear in the same sentence.
+
 The engine detects the address; generating mail is out of scope for the engine.
 
 ## `DocumentReport`
