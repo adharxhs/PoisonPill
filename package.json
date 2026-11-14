@@ -1,0 +1,16 @@
+{
+  "name": "poisonpill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first MV3 extension that flags predatory contract clauses with a Rust/Wasm engine.",
+  "scripts": {
+    "build": "esbuild extension/src/content.ts extension/src/worker.ts extension/src/popup.ts --bundle --format=iife --target=chrome120 --outdir=dist --log-level=warning",
+    "typecheck": "tsc -p tsconfig.json",
+    "parity": "node scripts/wasm-parity.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.7",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

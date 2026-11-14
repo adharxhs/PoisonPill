@@ -8,13 +8,13 @@ DIST_DIR     := dist
 WASM_PKG     := $(ENGINE_DIR)/pkg
 WASM_ARTIFACT := $(PUBLIC_DIR)/engine.wasm
 
-.PHONY: all engine extension assets clean check verify fmt clippy test budget parity measure-wasm heldout goldens
+.PHONY: all engine extension assets clean check verify fmt clippy test budget parity measure-wasm heldout goldens typecheck
 
 all: engine extension
 
 ## Full gate: formatting, lints, unit/integration tests, wasm build, budgets,
-## and native/Wasm parity.
-verify: fmt clippy test budget parity
+## native/Wasm parity, and the TypeScript typecheck.
+verify: fmt clippy test budget parity typecheck
 
 ## Compile the Rust core to WebAssembly and copy loader + binary into public/.
 ## `no-modules` keeps the classic Worker (importScripts) path working.
@@ -30,11 +30,19 @@ engine:
 	@echo "wrote $(WASM_ARTIFACT) ($$(du -h $(WASM_ARTIFACT) | cut -f1))"
 
 ## Compile TypeScript and assemble the unpacked extension in dist/.
-## NOTE: package.json / tsconfig.json are not committed yet, so this target is a stub.
-extension: assets
-	@command -v tsc >/dev/null || { echo "tsc missing: TypeScript build tooling is not configured yet"; exit 1; }
-	tsc -p $(EXTENSION_DIR)/tsconfig.json --outDir $(DIST_DIR)
+## Prerequisite: `npm install` once. esbuild bundles each entry as a classic
+## script because content scripts and the worker are not ES modules.
+extension:
+	rm -rf $(DIST_DIR)
+	@$(MAKE) --no-print-directory assets
+	@test -x node_modules/.bin/esbuild || { echo "TypeScript tooling missing: run 'npm install'"; exit 1; }
+	npm run --silent build
 	@echo "assembled $(DIST_DIR)/ — load it via chrome://extensions"
+
+## Typecheck without emitting. Part of `verify`.
+typecheck:
+	@test -x node_modules/.bin/tsc || { echo "TypeScript tooling missing: run 'npm install'"; exit 1; }
+	npm run --silent typecheck
 
 ## Copy manifest, icons, and public assets into dist/.
 assets:
@@ -84,4 +92,3 @@ heldout:
 
 clean:
 	rm -rf $(DIST_DIR) $(WASM_PKG) $(ENGINE_DIR)/target
-	rm -f $(WASM_ARTIFACT)

@@ -2,9 +2,9 @@
 /dist/
 /engine/target/
 /engine/pkg/
-/extension/public/*.wasm
-/extension/public/*.js
-/extension/public/*.wasm.d.ts
+
+# `extension/public/engine.js` and `engine.wasm` are committed on purpose: the
+# next engineer should need only Node, not the Rust/wasm toolchain.
 
 # Dependencies
 node_modules/
