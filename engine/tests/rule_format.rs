@@ -65,3 +65,71 @@ fn prohibited_data_blocks_the_synthetic_category() {
     );
     assert!(report.findings.is_empty());
 }
+
+const SYNTHETIC_INVERSION: RuleSpec = RuleSpec {
+    rule_id: "synthetic_inversion.share",
+    category_id: "synthetic_inversion",
+    label: "Synthetic Inversion",
+    modality: Modality::Permission,
+    weight: 2.0,
+    required: &[Predicate::AnyPhrase(&["share"])],
+    optional: &[],
+    prohibited: &[],
+    proximity_window: 0,
+    inversion_sensitive: true,
+};
+
+fn inversion_registry() -> RuleRegistry {
+    let mut registry = RuleRegistry::builtin();
+    registry.add(SYNTHETIC_INVERSION);
+    registry
+}
+
+#[test]
+fn odd_marker_suppresses_a_positive_predicate() {
+    let report = analyze_with(
+        &inversion_registry(),
+        "You share personal data unless the law requires otherwise.",
+    );
+    assert!(report.findings.is_empty());
+}
+
+#[test]
+fn even_markers_cancel_and_the_rule_fires() {
+    let report = analyze_with(
+        &inversion_registry(),
+        "You share personal data, except where required, unless the law says otherwise.",
+    );
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(
+        report.findings[0].inversion,
+        poisonpill_engine::InversionShape::Canceled
+    );
+}
+
+#[test]
+fn compliance_then_carve_out_fires_as_a_distinct_shape() {
+    let report = analyze_with(
+        &inversion_registry(),
+        "We do not share your data except that we may share it with partners.",
+    );
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(
+        report.findings[0].inversion,
+        poisonpill_engine::InversionShape::ComplianceThenCarveOut
+    );
+    assert!(report.findings[0].reason.contains("hostile carve-out"));
+}
+
+#[test]
+fn quoted_markers_do_not_count() {
+    let report = analyze_with(
+        &inversion_registry(),
+        "You share data and the word \"except\" is defined here.",
+    );
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(
+        report.findings[0].inversion,
+        poisonpill_engine::InversionShape::None
+    );
+}

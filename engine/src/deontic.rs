@@ -6,6 +6,7 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::exceptions::classify;
 use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
 };
@@ -80,6 +81,11 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
         let mut emitted_categories: Vec<&'static str> = Vec::new();
 
         for rule_match in registry.matches(clause) {
+            let inversion = classify(clause, rule_match.inversion_sensitive, &rule_match.spans);
+            if inversion == InversionShape::Inverted {
+                continue;
+            }
+
             // One finding per category per clause, selected by registry order.
             if emitted_categories.contains(&rule_match.category_id) {
                 continue;
@@ -102,8 +108,8 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 } else {
                     None
                 },
-                inversion: InversionShape::None,
-                reason: reason_for(&rule_match),
+                inversion,
+                reason: reason_for(&rule_match, inversion),
             });
         }
     }
@@ -117,14 +123,22 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
 }
 
 /// One sentence, built only from matched rule data.
-fn reason_for(rule_match: &RuleMatch) -> String {
+fn reason_for(rule_match: &RuleMatch, inversion: InversionShape) -> String {
     let quoted = rule_match
         .evidence
         .iter()
         .map(|evidence| format!("\"{evidence}\""))
         .collect::<Vec<_>>()
         .join(", ");
-    format!("matched {quoted} in the clause")
+    match inversion {
+        InversionShape::ComplianceThenCarveOut => format!(
+            "matched {quoted} in the clause; a hostile carve-out overrides the compliant base"
+        ),
+        InversionShape::Canceled => {
+            format!("matched {quoted} in the clause; two carve-outs cancel each other")
+        }
+        _ => format!("matched {quoted} in the clause"),
+    }
 }
 
 /// `P_I = min(100, sum(w * mu * tau))`.

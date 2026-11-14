@@ -114,3 +114,17 @@ pub const UNILATERAL_DISCRETION: &[&str] = &[
     "in our discretion",
     "unilaterally",
 ];
+
+/// Negations that make a base clause compliant before a carve-out marker.
+pub const COMPLIANCE_NEGATIONS: &[&str] = &[
+    "not",
+    "never",
+    "no",
+    "nothing",
+    "does not",
+    "do not",
+    "will not",
+    "shall not",
+    "is not",
+    "are not",
+];

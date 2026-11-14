@@ -99,17 +99,19 @@ impl RuleSpec {
     pub fn evaluate(&self, clause: &str) -> Option<RuleMatch> {
         let window = self.proximity_window;
         let mut evidence = Vec::new();
-        let mut spans = Vec::new();
+        let mut hit_spans = Vec::new();
+        let mut all_spans = Vec::new();
 
         for predicate in self.required {
             let hit = predicate.evaluate(clause, window)?;
             push_unique(&mut evidence, hit.evidence);
-            spans.push((hit.start, hit.end));
+            hit_spans.push((hit.start, hit.end));
+            all_spans.extend(predicate.all_spans(clause, window));
         }
 
-        if window > 0 && spans.len() > 1 {
-            let start = spans.iter().map(|(start, _)| *start).min()?;
-            let end = spans.iter().map(|(_, end)| *end).max()?;
+        if window > 0 && hit_spans.len() > 1 {
+            let start = hit_spans.iter().map(|(start, _)| *start).min()?;
+            let end = hit_spans.iter().map(|(_, end)| *end).max()?;
             if word_span(clause, start, end) > window {
                 return None;
             }
@@ -124,9 +126,12 @@ impl RuleSpec {
         for predicate in self.optional {
             if let Some(hit) = predicate.evaluate(clause, window) {
                 push_unique(&mut evidence, hit.evidence);
-                spans.push((hit.start, hit.end));
+                all_spans.extend(predicate.all_spans(clause, window));
             }
         }
+
+        all_spans.sort_unstable();
+        all_spans.dedup();
 
         Some(RuleMatch {
             rule_id: self.rule_id,
@@ -135,7 +140,7 @@ impl RuleSpec {
             modality: self.modality,
             weight: self.weight,
             evidence,
-            spans,
+            spans: all_spans,
             inversion_sensitive: self.inversion_sensitive,
         })
     }
@@ -151,6 +156,24 @@ impl Predicate {
             Predicate::AnyPhrase(phrases) => earliest_phrase(clause, phrases),
             Predicate::AllPhrases(phrases) => all_phrases(clause, phrases),
             Predicate::Near { left, right } => nearest_pair(clause, left, right, window),
+        }
+    }
+
+    /// Every occurrence that could count as matched data. Inversion uses this
+    /// so a hostile carve-out after the marker is visible even when the same
+    /// phrase also appeared in the compliant base.
+    pub fn all_spans(&self, clause: &str, window: usize) -> Vec<(usize, usize)> {
+        match self {
+            Predicate::AnyPhrase(phrases) | Predicate::AllPhrases(phrases) => {
+                all_occurrences(clause, phrases)
+                    .into_iter()
+                    .map(|(start, _, len)| (start, start + len))
+                    .collect()
+            }
+            Predicate::Near { .. } => self
+                .evaluate(clause, window)
+                .map(|hit| vec![(hit.start, hit.end)])
+                .unwrap_or_default(),
         }
     }
 }
