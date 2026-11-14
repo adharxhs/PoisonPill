@@ -11,6 +11,7 @@ use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
 };
 use crate::rules::{RuleMatch, RuleRegistry};
+use crate::scoring::poison_index;
 use crate::tokenizer::sentences;
 
 #[wasm_bindgen]
@@ -141,23 +142,9 @@ fn reason_for(rule_match: &RuleMatch, inversion: InversionShape) -> String {
     }
 }
 
-/// `P_I = min(100, sum(w * mu * tau))`.
-///
-/// `mu` doubles when discretion is strictly unilateral; `tau` decays to `0.1`
-/// when the clause ships an opt-out, because the right is not fully stripped.
-pub fn poison_index(findings: &[ClauseFinding]) -> f32 {
-    let total: f32 = findings
-        .iter()
-        .map(|f| {
-            let unilateral = f.raw_text.to_lowercase().contains("sole discretion");
-            let mu = if unilateral { 2.0 } else { 1.0 };
-            let tau = if f.opt_out_available { 0.1 } else { 1.0 };
-            f.severity * mu * tau
-        })
-        .sum();
-
-    total.clamp(0.0, 100.0)
-}
+/// `P_I` from the scoring module. Kept here as a re-export for callers that
+/// already import from the engine entry point.
+pub use crate::scoring::poison_index as score;
 
 fn has_opt_out_window(normalized: &str) -> bool {
     normalized.contains("opt-out")

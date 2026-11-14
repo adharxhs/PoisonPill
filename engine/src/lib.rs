@@ -11,6 +11,7 @@ pub mod exceptions;
 pub mod lexicon;
 pub mod model;
 pub mod rules;
+pub mod scoring;
 pub mod tokenizer;
 
 pub use deontic::{analyze, analyze_with, LegalEngine};
@@ -19,6 +20,7 @@ pub use model::{
     Modality, SCHEMA_VERSION,
 };
 pub use rules::{Predicate, RuleRegistry, RuleSpec};
+pub use scoring::{finding_contribution, poison_index};
 
 /// Crate version, mirrored from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
