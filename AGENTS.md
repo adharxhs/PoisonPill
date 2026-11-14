@@ -14,7 +14,8 @@ PoisonPill is a local-first Chrome Manifest V3 extension that flags predatory co
 | `engine/src/tokenizer.rs` | Linear sentence splitter with offsets and abbreviation guards. |
 | `engine/src/deontic.rs` | Actor/modality extraction and the engine entry point. |
 | `engine/src/exceptions.rs` | Boundary-marker inversion calculus (`NetPolarity`). |
-| `engine/src/taxonomy.rs` | Threat categories, severities, and syntactic footprints. |
+| `engine/src/lexicon.rs` | Phrase data (actors, verbs, assets, guards) the content engineer extends. |
+| `engine/src/rules.rs` | Declarative `RuleSpec` data and the category-agnostic evaluator. |
 | `extension/src/` | TypeScript: `content.ts`, `worker.ts`, `popup.ts`, `optout.ts`. |
 | `extension/public/` | Static assets copied verbatim; `engine.wasm` is generated. |
 | `manifest.json` | MV3 manifest, kept at the repo root. |
@@ -44,7 +45,7 @@ Prerequisites not currently installed on this machine: `wasm-pack` (`cargo insta
 ## Conventions
 
 - Rust: edition 2021, `#![deny(unsafe_code)]` unless a comment justifies it, no panics on user text (`unwrap` only on serialisation of owned structs).
-- Severity weights come from `taxonomy.rs` and follow the spec table (arbitration `5.0` … surveillance `3.0`). Scores are normalised into `P_I ∈ [0, 100]` at the document level, never per clause.
+- Severity weights come from `RuleSpec.weight` in `rules.rs` and follow the spec table (arbitration `5.0` … surveillance `3.0`). Scores are normalised into `P_I ∈ [0, 100]` at the document level, never per clause. Only Forced Arbitration is authored; the other four categories are empty slots. See `docs/RULES.md`.
 - Opt-out addresses are extracted only from text that also states an opt-out window; a bare email is not an opt-out target.
 - Keep `engine` free of Chrome APIs so it stays testable with plain `cargo test`.
 - TypeScript: strict mode, no `any` at the worker boundary, explicit `MessageEvent` types.

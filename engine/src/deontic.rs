@@ -1,37 +1,42 @@
 //! Deontic extraction and the wasm-bindgen entry point.
 //!
-//! The current matcher is still the scaffold heuristic; step 4 replaces it with
-//! the declarative rule registry. The wire types already live in `model.rs`.
+//! Detection is entirely driven by `rules::RuleRegistry`; this module only
+//! walks sentences, turns rule matches into wire findings, and attaches
+//! opt-out/scoring evidence.
 
 use wasm_bindgen::prelude::*;
 
 use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
 };
-use crate::taxonomy::{self, Category};
+use crate::rules::{RuleMatch, RuleRegistry};
 use crate::tokenizer::sentences;
 
 #[wasm_bindgen]
-pub struct LegalEngine;
+pub struct LegalEngine {
+    registry: RuleRegistry,
+}
 
 #[wasm_bindgen]
 impl LegalEngine {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        Self
+        Self {
+            registry: RuleRegistry::builtin(),
+        }
     }
 
     /// Analyse a contract and return a `DocumentReport` as a JS object.
     #[wasm_bindgen(js_name = analyzeDocument)]
     pub fn analyze_document(&self, raw_text: &str) -> JsValue {
-        let report = analyze_report(raw_text);
+        let report = analyze_with(&self.registry, raw_text);
         serde_wasm_bindgen::to_value(&report).unwrap_or(JsValue::NULL)
     }
 
     /// Canonical JSON form used by parity tests and the worker.
     #[wasm_bindgen(js_name = analyzeJson)]
     pub fn analyze_json(&self, raw_text: &str) -> String {
-        let outcome = AnalyzeResponse::ok(analyze_report(raw_text));
+        let outcome = AnalyzeResponse::ok(analyze_with(&self.registry, raw_text));
         serde_json::to_string(&outcome).unwrap_or_else(|error| {
             serde_json::json!({
                 "status": "error",
@@ -48,35 +53,49 @@ impl Default for LegalEngine {
     }
 }
 
-/// Classify every sentence against the taxonomy.
-pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
-    analyze_report(raw_text).findings
+impl LegalEngine {
+    /// Native-only seam for the runtime rule-format guarantee test.
+    pub fn with_registry(registry: RuleRegistry) -> Self {
+        Self { registry }
+    }
+
+    pub fn registry(&self) -> &RuleRegistry {
+        &self.registry
+    }
 }
 
-pub fn analyze_report(raw_text: &str) -> DocumentReport {
+/// Analyse with the shipped registry.
+pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
+    analyze_with(&RuleRegistry::builtin(), raw_text).findings
+}
+
+/// Analyse with an arbitrary registry. This is the function the guarantee test
+/// uses to prove that a synthetic category can be registered as data.
+pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
     let mut findings = Vec::new();
 
     for sentence in sentences(raw_text) {
-        let start = sentence.start;
-        let end = sentence.end;
         let clause = sentence.text;
-
         let normalized = clause.to_lowercase();
-        for category in Category::ALL {
-            if !taxonomy::matches(category, &normalized) {
+        let mut emitted_categories: Vec<&'static str> = Vec::new();
+
+        for rule_match in registry.matches(clause) {
+            // One finding per category per clause, selected by registry order.
+            if emitted_categories.contains(&rule_match.category_id) {
                 continue;
             }
+            emitted_categories.push(rule_match.category_id);
 
             let opt_out_available = has_opt_out_window(&normalized);
             findings.push(ClauseFinding {
-                category: category.id().to_string(),
-                label: category.label().to_string(),
-                rule_id: format!("{}.scaffold", category.id()),
+                category: rule_match.category_id.to_string(),
+                label: rule_match.label.to_string(),
+                rule_id: rule_match.rule_id.to_string(),
                 raw_text: clause.to_string(),
-                modality: category.modality(),
-                severity: category.weight(),
-                start_offset: start,
-                end_offset: end,
+                modality: rule_match.modality,
+                severity: rule_match.weight,
+                start_offset: sentence.start,
+                end_offset: sentence.end,
                 opt_out_available,
                 opt_out_target: if opt_out_available {
                     extract_opt_out_address(clause)
@@ -84,7 +103,7 @@ pub fn analyze_report(raw_text: &str) -> DocumentReport {
                     None
                 },
                 inversion: InversionShape::None,
-                reason: format!("matched the scaffold footprint for {}", category.label()),
+                reason: reason_for(&rule_match),
             });
         }
     }
@@ -95,6 +114,17 @@ pub fn analyze_report(raw_text: &str) -> DocumentReport {
         findings,
         truncated: false,
     }
+}
+
+/// One sentence, built only from matched rule data.
+fn reason_for(rule_match: &RuleMatch) -> String {
+    let quoted = rule_match
+        .evidence
+        .iter()
+        .map(|evidence| format!("\"{evidence}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("matched {quoted} in the clause")
 }
 
 /// `P_I = min(100, sum(w * mu * tau))`.
@@ -145,6 +175,7 @@ fn extract_opt_out_address(text: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::model::Modality;
+    use crate::rules::{Predicate, RuleRegistry, RuleSpec};
 
     #[test]
     fn finds_arbitration_clause_and_opt_out() {
@@ -169,11 +200,27 @@ mod tests {
     }
 
     #[test]
+    fn reason_uses_matched_data() {
+        let doc = "You waive any right to a class action.";
+        let finding = analyze(doc).into_iter().next().expect("finding");
+        assert!(finding.reason.contains("\"waive\""));
+        assert!(finding.reason.contains("\"class action\""));
+    }
+
+    #[test]
+    fn poisoned_category_is_deduped_per_clause() {
+        let doc = "You waive your right to a jury trial and to bring a class action in court.";
+        let findings = analyze(doc);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].category, "forced_arbitration");
+    }
+
+    #[test]
     fn poison_index_is_bounded() {
         let finding = ClauseFinding {
             category: "forced_arbitration".into(),
             label: "Forced Arbitration & Class Waiver".into(),
-            rule_id: "forced_arbitration.scaffold".into(),
+            rule_id: "forced_arbitration.class_action_waiver".into(),
             raw_text: "waive class action at our sole discretion".into(),
             modality: Modality::Waiver,
             severity: 5.0,
@@ -189,10 +236,28 @@ mod tests {
     }
 
     #[test]
-    fn inversion_count_ignores_plain_text() {
-        assert_eq!(
-            crate::exceptions::inversion_depth("we may share your data"),
-            0
-        );
+    fn runtime_registry_can_add_a_category() {
+        const SYNTHETIC: RuleSpec = RuleSpec {
+            rule_id: "canary.chirp",
+            category_id: "canary",
+            label: "Canary Category",
+            modality: Modality::Obligation,
+            weight: 2.0,
+            required: &[
+                Predicate::AnyPhrase(&["canary clause"]),
+                Predicate::AnyPhrase(&["must chirp"]),
+            ],
+            optional: &[],
+            prohibited: &[],
+            proximity_window: 20,
+            inversion_sensitive: false,
+        };
+
+        let mut registry = RuleRegistry::builtin();
+        registry.add(SYNTHETIC);
+        let report = analyze_with(&registry, "The canary clause must chirp twice.");
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].category, "canary");
+        assert_eq!(report.findings[0].rule_id, "canary.chirp");
     }
 }

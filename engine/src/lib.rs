@@ -8,16 +8,17 @@
 #[allow(unsafe_code)]
 pub mod deontic;
 pub mod exceptions;
+pub mod lexicon;
 pub mod model;
-pub mod taxonomy;
+pub mod rules;
 pub mod tokenizer;
 
-pub use deontic::{analyze, LegalEngine};
+pub use deontic::{analyze, analyze_with, LegalEngine};
 pub use model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, EngineError, ErrorCode, InversionShape,
     Modality, SCHEMA_VERSION,
 };
-pub use taxonomy::Category;
+pub use rules::{Predicate, RuleRegistry, RuleSpec};
 
 /// Crate version, mirrored from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
