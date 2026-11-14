@@ -125,6 +125,31 @@ fn findings_slice_their_input_and_match_expectations() {
 }
 
 #[test]
+fn playback_fixture_matches_its_golden() {
+    let playback_path = fixtures_root().join("../extension/public/playback.json");
+    let playback: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&playback_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", playback_path.display())),
+    )
+    .expect("playback fixture is valid JSON");
+
+    let golden_path = fixtures_root().join("golden/positive/07-opt-out-window.json");
+    let golden: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&golden_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", golden_path.display())),
+    )
+    .expect("golden is valid JSON");
+
+    assert_eq!(
+        playback, golden,
+        "playback fixture drifted; run `make goldens`"
+    );
+
+    let response: AnalyzeResponse = serde_json::from_value(playback).expect("playback envelope");
+    assert!(matches!(response, AnalyzeResponse::Ok { .. }));
+}
+
+#[test]
 fn repeated_analysis_is_byte_identical() {
     let engine = LegalEngine::new();
     for class in CLASSES {

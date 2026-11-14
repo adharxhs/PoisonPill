@@ -28,7 +28,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["worker.js", "engine.js", "engine.wasm"],
+      "resources": ["worker.js", "engine.js", "engine.wasm", "playback.json"],
       "matches": ["<all_urls>"]
     }
   ],

@@ -19,6 +19,7 @@ export interface ClauseFinding {
   start_offset: number;
   end_offset: number;
   opt_out_available: boolean;
+  /** Omitted by the engine when no valid address was found. */
   opt_out_target?: string;
   inversion: InversionShape;
   reason: string;
@@ -55,7 +56,7 @@ export interface AnalyzeRequest {
   text: string;
 }
 
-/** Routes through the bundled fixture instead of the Wasm engine. */
+/** Returns a bundled report so UI work needs no Wasm build. */
 export interface PlaybackRequest {
   type: 'PLAYBACK_FIXTURE';
 }

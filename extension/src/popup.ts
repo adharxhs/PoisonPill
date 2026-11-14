@@ -1,83 +1,56 @@
-import { generateOptOutMail } from './optout';
+// Popup: a plain reference view of the last stored report.
+//
+// No highlighting, jump-to-clause, mail generation or history. Those are product
+// features layered on top of the contract in docs/CONTRACT.md.
+
 import type { ClauseFinding, ScanRecord } from './types';
 
-const list = document.getElementById('findings') as HTMLUListElement | null;
-const indexEl = document.getElementById('poison-index') as HTMLElement | null;
-const emptyEl = document.getElementById('empty') as HTMLElement | null;
-
-function severityColor(severity: number): string {
-  if (severity >= 4.5) return '#dc2626';
-  if (severity >= 3.5) return '#d97706';
-  return '#ca8a04';
-}
-
-async function load(): Promise<void> {
-  const { last_scan: record } = (await chrome.storage.local.get('last_scan')) as {
-    last_scan?: ScanRecord;
-  };
-
-  if (!record || record.findings.length === 0) {
-    emptyEl?.removeAttribute('hidden');
-    list?.setAttribute('hidden', '');
-    return;
-  }
-
-  emptyEl?.setAttribute('hidden', '');
-  if (indexEl) {
-    indexEl.textContent = record.poison_index.toFixed(1);
-    indexEl.style.color = severityColor(record.poison_index / 20);
-  }
-
-  list?.removeAttribute('hidden');
-  record.findings.forEach((finding) => list?.appendChild(renderFinding(finding)));
-}
+const empty = document.getElementById('empty');
+const report = document.getElementById('report');
+const index = document.getElementById('poison-index');
 
 function renderFinding(finding: ClauseFinding): HTMLLIElement {
   const item = document.createElement('li');
-  item.className = 'finding';
 
-  const header = document.createElement('div');
-  header.className = 'finding-header';
-
-  const label = document.createElement('span');
-  label.className = 'category';
-  label.textContent = finding.category;
-  label.style.color = severityColor(finding.severity);
-
-  const score = document.createElement('span');
-  score.className = 'score';
-  score.textContent = `${finding.severity.toFixed(1)}/5.0`;
-
-  header.append(label, score);
+  const heading = document.createElement('p');
+  heading.textContent =
+    `${finding.label} — ${finding.severity.toFixed(1)}/5.0 ` +
+    `(${finding.rule_id})`;
 
   const quote = document.createElement('blockquote');
   quote.textContent = finding.raw_text;
 
-  const actions = document.createElement('div');
-  actions.className = 'actions';
+  const meta = document.createElement('p');
+  meta.textContent = finding.opt_out_available
+    ? finding.opt_out_target
+      ? `Opt-out available: ${finding.opt_out_target}`
+      : 'Opt-out available'
+    : 'No stated opt-out';
 
-  const jump = document.createElement('button');
-  jump.type = 'button';
-  jump.textContent = 'Jump to clause';
-  jump.addEventListener('click', () => {
-    void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id !== undefined) {
-        void chrome.tabs.sendMessage(tab.id, { type: 'SCROLL_TO_CLAUSE' });
-      }
-    });
-  });
-  actions.appendChild(jump);
+  item.append(heading, quote, meta);
+  return item;
+}
 
-  if (finding.opt_out_available && finding.opt_out_target) {
-    const optOut = document.createElement('a');
-    optOut.className = 'optout';
-    optOut.textContent = 'Generate opt-out mail';
-    optOut.href = generateOptOutMail(finding.opt_out_target, document.title);
-    actions.appendChild(optOut);
+async function load(): Promise<void> {
+  const stored = (await chrome.storage.local.get('last_scan')) as {
+    last_scan?: ScanRecord;
+  };
+  const record = stored.last_scan;
+
+  if (!record || record.report.findings.length === 0) {
+    empty?.removeAttribute('hidden');
+    return;
   }
 
-  item.append(header, quote, actions);
-  return item;
+  if (index) {
+    index.textContent = record.report.poison_index.toFixed(1);
+  }
+
+  const list = document.createElement('ul');
+  for (const finding of record.report.findings) {
+    list.appendChild(renderFinding(finding));
+  }
+  report?.append(list);
 }
 
 void load();

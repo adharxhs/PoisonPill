@@ -21,3 +21,9 @@ for class in positive hard_negative negative; do
 		echo "wrote fixtures/golden/$class/$name.json"
 	done
 done
+
+# The popup's playback fixture is a copy of a small positive report so UI work
+# needs no Wasm build. Keep it in sync with the golden it mirrors.
+cp "$root/fixtures/golden/positive/07-opt-out-window.json" \
+	"$root/extension/public/playback.json"
+echo "copied extension/public/playback.json"

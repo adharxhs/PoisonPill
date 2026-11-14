@@ -3,101 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <title>PoisonPill</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        --bg: #ffffff;
-        --fg: #111827;
-        --muted: #6b7280;
-        --line: #e5e7eb;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #111827;
-          --fg: #f9fafb;
-          --muted: #9ca3af;
-          --line: #374151;
-        }
-      }
-      * { box-sizing: border-box; }
-      body {
-        width: 380px;
-        max-height: 560px;
-        margin: 0;
-        overflow-y: auto;
-        background: var(--bg);
-        color: var(--fg);
-        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-      }
-      header {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 16px;
-        border-bottom: 1px solid var(--line);
-        position: sticky;
-        top: 0;
-        background: var(--bg);
-      }
-      h1 { margin: 0; font-size: 15px; letter-spacing: 0.01em; }
-      .index { display: flex; align-items: baseline; gap: 4px; }
-      .index strong { font-size: 22px; font-variant-numeric: tabular-nums; }
-      .index span { font-size: 11px; color: var(--muted); }
-      #empty { padding: 24px 16px; color: var(--muted); }
-      ul { list-style: none; margin: 0; padding: 0; }
-      .finding { padding: 14px 16px; border-bottom: 1px solid var(--line); }
-      .finding-header { display: flex; justify-content: space-between; gap: 8px; }
-      .category { font-weight: 600; }
-      .score { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
-      blockquote {
-        margin: 8px 0 10px;
-        padding-left: 10px;
-        border-left: 2px solid var(--line);
-        color: var(--muted);
-        font-style: italic;
-      }
-      .actions { display: flex; gap: 8px; }
-      button {
-        font: inherit;
-        font-size: 12px;
-        padding: 4px 10px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-      }
-      a.optout {
-        font-size: 12px;
-        padding: 4px 10px;
-        border-radius: 6px;
-        background: #dc2626;
-        color: #fff;
-        text-decoration: none;
-      }
-      footer {
-        padding: 10px 16px;
-        font-size: 11px;
-        color: var(--muted);
-        border-top: 1px solid var(--line);
-      }
-    </style>
   </head>
   <body>
-    <header>
-      <h1>PoisonPill</h1>
-      <div class="index">
-        <strong id="poison-index">--</strong>
-        <span>/ 100 poison index</span>
-      </div>
-    </header>
-
+    <h1>PoisonPill</h1>
+    <p>Poison index: <strong id="poison-index">--</strong> / 100</p>
     <p id="empty" hidden>No predatory clauses detected on this page.</p>
-    <ul id="findings" hidden></ul>
-
-    <footer>Offline analysis. Nothing leaves this browser.</footer>
-
+    <div id="report"></div>
+    <p><small>Local analysis. Nothing leaves this browser.</small></p>
     <script src="popup.js" defer></script>
   </body>
 </html>
