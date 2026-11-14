@@ -36,9 +36,9 @@ pub fn inversion_factor(marker: &str) -> f32 {
 
 /// Fold a base polarity and its subordinate `(polarity, marker)` pairs.
 pub fn net_polarity(base: f32, subordinates: &[(f32, &str)]) -> f32 {
-    subordinates
-        .iter()
-        .fold(base, |acc, (polarity, marker)| acc * inversion_factor(marker) * polarity)
+    subordinates.iter().fold(base, |acc, (polarity, marker)| {
+        acc * inversion_factor(marker) * polarity
+    })
 }
 
 /// Count how many inversion markers appear in `text`. Odd counts mean the
@@ -62,7 +62,10 @@ mod tests {
 
     #[test]
     fn double_inversion_cancels() {
-        assert_eq!(net_polarity(1.0, &[(1.0, "unless"), (1.0, "notwithstanding")]), 1.0);
+        assert_eq!(
+            net_polarity(1.0, &[(1.0, "unless"), (1.0, "notwithstanding")]),
+            1.0
+        );
     }
 
     #[test]

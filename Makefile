@@ -8,9 +8,12 @@ DIST_DIR     := dist
 WASM_PKG     := $(ENGINE_DIR)/pkg
 WASM_ARTIFACT := $(PUBLIC_DIR)/engine.wasm
 
-.PHONY: all engine extension assets clean check
+.PHONY: all engine extension assets clean check verify fmt clippy test budget
 
 all: engine extension
+
+## Full gate: formatting, lints, unit/integration tests, wasm build, budgets.
+verify: fmt clippy test budget
 
 ## Compile the Rust core to WebAssembly and copy loader + binary into public/.
 ## `no-modules` keeps the classic Worker (importScripts) path working.
@@ -45,6 +48,20 @@ assets:
 ## Static checks that do not require the wasm toolchain.
 check:
 	cargo check --manifest-path $(ENGINE_DIR)/Cargo.toml
+
+fmt:
+	cargo fmt --manifest-path $(ENGINE_DIR)/Cargo.toml -- --check
+
+clippy:
+	cargo clippy --manifest-path $(ENGINE_DIR)/Cargo.toml --all-targets -- -D warnings
+
+test:
+	cargo test --manifest-path $(ENGINE_DIR)/Cargo.toml
+
+## Size and latency budgets. Release mode is required for the latency number.
+budget: engine
+	cargo test --release --manifest-path $(ENGINE_DIR)/Cargo.toml --test budgets -- --ignored --nocapture
+	./scripts/check-size.sh $(WASM_ARTIFACT)
 
 clean:
 	rm -rf $(DIST_DIR) $(WASM_PKG) $(ENGINE_DIR)/target

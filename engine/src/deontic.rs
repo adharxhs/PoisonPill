@@ -120,11 +120,17 @@ fn has_opt_out_window(normalized: &str) -> bool {
 fn extract_opt_out_address(text: &str) -> Option<String> {
     text.split_whitespace()
         .map(|word| {
-            word.trim_matches(|c: char| !c.is_alphanumeric() && c != '@' && c != '.' && c != '-' && c != '_')
+            word.trim_matches(|c: char| {
+                !c.is_alphanumeric() && c != '@' && c != '.' && c != '-' && c != '_'
+            })
         })
+        .map(|word| word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']', '>']))
         .find(|word| {
             word.contains('@')
-                && word.split('@').nth(1).is_some_and(|domain| domain.contains('.'))
+                && word
+                    .split('@')
+                    .nth(1)
+                    .is_some_and(|domain| domain.contains('.'))
         })
         .map(str::to_string)
 }
@@ -139,7 +145,9 @@ mod tests {
                    unless you opt-out within 30 days by emailing arb@example.com.";
         let findings = analyze(doc);
         assert!(findings.iter().any(|f| f.opt_out_available));
-        assert!(findings.iter().any(|f| f.opt_out_target.as_deref() == Some("arb@example.com")));
+        assert!(findings
+            .iter()
+            .any(|f| f.opt_out_target.as_deref() == Some("arb@example.com")));
     }
 
     #[test]
@@ -158,6 +166,9 @@ mod tests {
 
     #[test]
     fn inversion_count_ignores_plain_text() {
-        assert_eq!(crate::exceptions::inversion_depth("we may share your data"), 0);
+        assert_eq!(
+            crate::exceptions::inversion_depth("we may share your data"),
+            0
+        );
     }
 }

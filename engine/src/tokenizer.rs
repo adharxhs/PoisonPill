@@ -31,9 +31,7 @@ pub fn sentences(text: &str) -> Vec<&str> {
 
                 // Skip closing punctuation, then require a capital, a digit or EOF.
                 let mut j = i + 1;
-                while j < bytes.len()
-                    && matches!(bytes[j], b' ' | b'\t' | b'"' | b'\'' | b')')
-                {
+                while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'"' | b'\'' | b')') {
                     j += 1;
                 }
 

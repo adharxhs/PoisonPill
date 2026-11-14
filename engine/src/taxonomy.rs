@@ -78,8 +78,7 @@ pub fn matches(category: Category, normalized: &str) -> bool {
                 && (has("sole discretion") || has("at any time") || has("without notice"))
         }
         Category::ReverseIndemnification => {
-            has("indemnify")
-                || (has("hold harmless") && (has("defend") || has("claims")))
+            has("indemnify") || (has("hold harmless") && (has("defend") || has("claims")))
         }
         Category::Surveillance => {
             (has("disclose") || has("share") || has("sell"))

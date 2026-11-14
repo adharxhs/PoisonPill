@@ -20,3 +20,9 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The wasm-opt bundled with wasm-pack 0.15 predates bulk-memory support in the
+# current Rust wasm backend and rejects our module. The module is already built
+# with opt-level="z" + LTO; the budget is asserted in `make verify`.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
