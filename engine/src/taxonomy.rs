@@ -3,7 +3,7 @@
 //! Weights here are the authoritative `w_k` in the Poison Index formula. Keep
 //! them in sync with the spec table (section 3).
 
-use crate::deontic::Modality;
+use crate::model::Modality;
 
 /// The five predatory classes the engine prioritises.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +31,17 @@ impl Category {
             Category::UnilateralModification => "Unilateral Modification",
             Category::ReverseIndemnification => "Reverse Indemnification",
             Category::Surveillance => "Surveillance & Data Cascades",
+        }
+    }
+
+    /// Stable machine id used on the wire.
+    pub fn id(self) -> &'static str {
+        match self {
+            Category::ForcedArbitration => "forced_arbitration",
+            Category::IpExpropriation => "ip_expropriation",
+            Category::UnilateralModification => "unilateral_modification",
+            Category::ReverseIndemnification => "reverse_indemnification",
+            Category::Surveillance => "surveillance",
         }
     }
 

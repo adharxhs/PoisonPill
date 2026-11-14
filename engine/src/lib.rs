@@ -8,10 +8,15 @@
 #[allow(unsafe_code)]
 pub mod deontic;
 pub mod exceptions;
+pub mod model;
 pub mod taxonomy;
 pub mod tokenizer;
 
-pub use deontic::{ClauseFinding, DocumentReport, LegalEngine, Modality};
+pub use deontic::{analyze, LegalEngine};
+pub use model::{
+    AnalyzeResponse, ClauseFinding, DocumentReport, EngineError, ErrorCode, InversionShape,
+    Modality, SCHEMA_VERSION,
+};
 pub use taxonomy::Category;
 
 /// Crate version, mirrored from `Cargo.toml`.

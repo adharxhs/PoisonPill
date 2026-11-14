@@ -1,38 +1,15 @@
-//! Deontic extraction: actors, modalities, and the wasm-bindgen entry point.
+//! Deontic extraction and the wasm-bindgen entry point.
+//!
+//! The current matcher is still the scaffold heuristic; step 4 replaces it with
+//! the declarative rule registry. The wire types already live in `model.rs`.
 
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+use crate::model::{
+    AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
+};
 use crate::taxonomy::{self, Category};
 use crate::tokenizer::sentences;
-
-/// Deontic modality carried by a clause edge.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Modality {
-    Obligation,
-    Permission,
-    Prohibition,
-    Waiver,
-}
-
-/// One flagged clause. Field names are the JS contract: keep snake_case.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClauseFinding {
-    pub category: String,
-    pub raw_text: String,
-    pub modality: Modality,
-    pub severity: f32,
-    pub opt_out_available: bool,
-    pub opt_out_target: Option<String>,
-}
-
-/// Full analysis result consumed by the popup.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DocumentReport {
-    pub findings: Vec<ClauseFinding>,
-    /// Normalised `P_I` in `[0, 100]`.
-    pub poison_index: f32,
-}
 
 #[wasm_bindgen]
 pub struct LegalEngine;
@@ -47,12 +24,21 @@ impl LegalEngine {
     /// Analyse a contract and return a `DocumentReport` as a JS object.
     #[wasm_bindgen(js_name = analyzeDocument)]
     pub fn analyze_document(&self, raw_text: &str) -> JsValue {
-        let findings = analyze(raw_text);
-        let report = DocumentReport {
-            poison_index: poison_index(&findings),
-            findings,
-        };
+        let report = analyze_report(raw_text);
         serde_wasm_bindgen::to_value(&report).unwrap_or(JsValue::NULL)
+    }
+
+    /// Canonical JSON form used by parity tests and the worker.
+    #[wasm_bindgen(js_name = analyzeJson)]
+    pub fn analyze_json(&self, raw_text: &str) -> String {
+        let outcome = AnalyzeResponse::ok(analyze_report(raw_text));
+        serde_json::to_string(&outcome).unwrap_or_else(|error| {
+            serde_json::json!({
+                "status": "error",
+                "error": { "code": "internal_serialization", "message": error.to_string() }
+            })
+            .to_string()
+        })
     }
 }
 
@@ -64,31 +50,55 @@ impl Default for LegalEngine {
 
 /// Classify every sentence against the taxonomy.
 pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
+    analyze_report(raw_text).findings
+}
+
+pub fn analyze_report(raw_text: &str) -> DocumentReport {
     let mut findings = Vec::new();
+    let mut cursor = 0usize;
 
     for sentence in sentences(raw_text) {
+        let start = raw_text[cursor..]
+            .find(sentence)
+            .map(|offset| cursor + offset)
+            .unwrap_or(cursor);
+        let end = start + sentence.len();
+        cursor = end;
+
         let normalized = sentence.to_lowercase();
         for category in Category::ALL {
             if !taxonomy::matches(category, &normalized) {
                 continue;
             }
+
             let opt_out_available = has_opt_out_window(&normalized);
             findings.push(ClauseFinding {
-                category: category.label().to_string(),
+                category: category.id().to_string(),
+                label: category.label().to_string(),
+                rule_id: format!("{}.scaffold", category.id()),
                 raw_text: sentence.to_string(),
                 modality: category.modality(),
                 severity: category.weight(),
+                start_offset: start,
+                end_offset: end,
                 opt_out_available,
                 opt_out_target: if opt_out_available {
                     extract_opt_out_address(sentence)
                 } else {
                     None
                 },
+                inversion: InversionShape::None,
+                reason: format!("matched the scaffold footprint for {}", category.label()),
             });
         }
     }
 
-    findings
+    DocumentReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        poison_index: poison_index(&findings),
+        findings,
+        truncated: false,
+    }
 }
 
 /// `P_I = min(100, sum(w * mu * tau))`.
@@ -138,6 +148,7 @@ fn extract_opt_out_address(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Modality;
 
     #[test]
     fn finds_arbitration_clause_and_opt_out() {
@@ -151,14 +162,31 @@ mod tests {
     }
 
     #[test]
+    fn finding_offsets_slice_the_input() {
+        let doc = "Intro. You waive any right to a class action.";
+        let findings = analyze(doc);
+        let finding = findings.first().expect("expected a finding");
+        assert_eq!(
+            &doc[finding.start_offset..finding.end_offset],
+            finding.raw_text
+        );
+    }
+
+    #[test]
     fn poison_index_is_bounded() {
         let finding = ClauseFinding {
-            category: "Forced Arbitration & Class Waiver".into(),
+            category: "forced_arbitration".into(),
+            label: "Forced Arbitration & Class Waiver".into(),
+            rule_id: "forced_arbitration.scaffold".into(),
             raw_text: "waive class action at our sole discretion".into(),
             modality: Modality::Waiver,
             severity: 5.0,
+            start_offset: 0,
+            end_offset: 0,
             opt_out_available: false,
             opt_out_target: None,
+            inversion: InversionShape::None,
+            reason: "test".into(),
         };
         let many = vec![finding; 40];
         assert_eq!(poison_index(&many), 100.0);

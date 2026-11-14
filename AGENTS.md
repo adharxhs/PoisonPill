@@ -9,11 +9,12 @@ PoisonPill is a local-first Chrome Manifest V3 extension that flags predatory co
 | Path | Role |
 | :--- | :--- |
 | `engine/` | Rust crate compiled to `wasm-bindgen`. The only place detection logic lives. |
-| `engine/src/lib.rs` | Wasm boundary: module wiring and re-exports. |
-| `engine/src/tokenizer.rs` | Linear sentence splitter with abbreviation guards. |
-| `engine/src/deontic.rs` | Actor/modality extraction and the `LegalEngine` entry point. |
+| `engine/src/lib.rs` | Module wiring and re-exports; the wasm binding module is scoped separately. |
+| `engine/src/model.rs` | Wire contract v1: `ClauseFinding`, `DocumentReport`, typed errors. |
+| `engine/src/tokenizer.rs` | Linear sentence splitter with offsets and abbreviation guards. |
+| `engine/src/deontic.rs` | Actor/modality extraction and the engine entry point. |
 | `engine/src/exceptions.rs` | Boundary-marker inversion calculus (`NetPolarity`). |
-| `engine/src/taxonomy.rs` | Threat categories, weights, and syntactic footprints. |
+| `engine/src/taxonomy.rs` | Threat categories, severities, and syntactic footprints. |
 | `extension/src/` | TypeScript: `content.ts`, `worker.ts`, `popup.ts`, `optout.ts`. |
 | `extension/public/` | Static assets copied verbatim; `engine.wasm` is generated. |
 | `manifest.json` | MV3 manifest, kept at the repo root. |
@@ -35,7 +36,7 @@ Prerequisites not currently installed on this machine: `wasm-pack` (`cargo insta
 
 - **Zero network egress.** No `fetch`, `XMLHttpRequest`, WebSocket, telemetry, CDN fonts, or remote stylesheets in extension code. `manifest.json` grants `storage` only — `host_permissions` stays empty and `content_scripts.matches` covers `<all_urls>` without granting fetch rights.
 - **Detection lives in Rust.** Content scripts extract text and render badges; they do not classify clauses. Adding a heuristic in TypeScript is a design regression.
-- **The Wasm contract is snake_case JSON.** `ClauseFinding` serialises as `raw_text`, `opt_out_available`, `opt_out_target`; the TS interfaces mirror those names exactly. Renaming one side requires the other.
+- **The Wasm contract is snake_case JSON.** The Rust source of truth is `engine/src/model.rs`; `extension/src/types.ts` mirrors it exactly. `ClauseFinding` carries `category`, `label`, `rule_id`, `raw_text`, `modality`, `severity`, `start_offset`, `end_offset`, `opt_out_available`, `opt_out_target`, `inversion`, `reason`. Offsets are byte offsets into the input string. See `docs/CONTRACT.md`.
 - **Analysis runs off the main thread.** All parsing goes through `worker.js`; the content script only posts text and consumes findings.
 - **`wasm-unsafe-eval` stays in the CSP.** Removing it breaks Wasm instantiation; widen nothing else.
 - **No DOM writes before findings exist.** Badges, highlights, and shields are idempotent and removable.
