@@ -55,6 +55,8 @@ pub struct ClauseFinding {
     /// Exclusive byte offset of `raw_text` in the analysed input.
     pub end_offset: usize,
     pub opt_out_available: bool,
+    /// Absent from the wire when no valid address was found.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub opt_out_target: Option<String>,
     pub inversion: InversionShape,
     /// One sentence explaining why the rule fired, built from matched data.
@@ -131,5 +133,31 @@ mod tests {
                 .unwrap();
         assert_eq!(value["status"], "error");
         assert_eq!(value["error"]["code"], "invalid_input");
+    }
+
+    #[test]
+    fn absent_opt_out_target_is_omitted_not_null() {
+        let finding = ClauseFinding {
+            category: "forced_arbitration".into(),
+            label: "Forced Arbitration & Class Waiver".into(),
+            rule_id: "forced_arbitration.class_action_waiver".into(),
+            raw_text: "You waive any right to a class action.".into(),
+            modality: Modality::Waiver,
+            severity: 5.0,
+            start_offset: 0,
+            end_offset: 36,
+            opt_out_available: false,
+            opt_out_target: None,
+            inversion: InversionShape::None,
+            reason: "test".into(),
+        };
+        let value = serde_json::to_value(&finding).unwrap();
+        assert!(value.get("opt_out_target").is_none());
+        assert_eq!(
+            serde_json::from_value::<ClauseFinding>(value)
+                .unwrap()
+                .opt_out_target,
+            None
+        );
     }
 }

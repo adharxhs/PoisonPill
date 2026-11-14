@@ -8,7 +8,7 @@ DIST_DIR     := dist
 WASM_PKG     := $(ENGINE_DIR)/pkg
 WASM_ARTIFACT := $(PUBLIC_DIR)/engine.wasm
 
-.PHONY: all engine extension assets clean check verify fmt clippy test budget
+.PHONY: all engine extension assets clean check verify fmt clippy test budget goldens
 
 all: engine extension
 
@@ -62,6 +62,11 @@ test:
 budget: engine
 	cargo test --release --manifest-path $(ENGINE_DIR)/Cargo.toml --test budgets -- --ignored --nocapture
 	./scripts/check-size.sh $(WASM_ARTIFACT)
+
+## Regenerate golden reports from the native engine. Review the diff: tests never
+## write goldens. Held-out fixtures are deliberately excluded.
+goldens:
+	./scripts/update-goldens.sh
 
 clean:
 	rm -rf $(DIST_DIR) $(WASM_PKG) $(ENGINE_DIR)/target
