@@ -55,17 +55,13 @@ pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
 
 pub fn analyze_report(raw_text: &str) -> DocumentReport {
     let mut findings = Vec::new();
-    let mut cursor = 0usize;
 
     for sentence in sentences(raw_text) {
-        let start = raw_text[cursor..]
-            .find(sentence)
-            .map(|offset| cursor + offset)
-            .unwrap_or(cursor);
-        let end = start + sentence.len();
-        cursor = end;
+        let start = sentence.start;
+        let end = sentence.end;
+        let clause = sentence.text;
 
-        let normalized = sentence.to_lowercase();
+        let normalized = clause.to_lowercase();
         for category in Category::ALL {
             if !taxonomy::matches(category, &normalized) {
                 continue;
@@ -76,14 +72,14 @@ pub fn analyze_report(raw_text: &str) -> DocumentReport {
                 category: category.id().to_string(),
                 label: category.label().to_string(),
                 rule_id: format!("{}.scaffold", category.id()),
-                raw_text: sentence.to_string(),
+                raw_text: clause.to_string(),
                 modality: category.modality(),
                 severity: category.weight(),
                 start_offset: start,
                 end_offset: end,
                 opt_out_available,
                 opt_out_target: if opt_out_available {
-                    extract_opt_out_address(sentence)
+                    extract_opt_out_address(clause)
                 } else {
                     None
                 },
