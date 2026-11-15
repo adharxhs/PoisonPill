@@ -11,6 +11,7 @@ dedicated Web Worker and never touches the network.
 - Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)
 - Known limits: [`docs/KNOWN_LIMITS.md`](docs/KNOWN_LIMITS.md)
 - Backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
+- Handoff: [`docs/HANDOFF.md`](docs/HANDOFF.md)
 - Measurements: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md)
 
 ## Build

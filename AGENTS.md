@@ -30,7 +30,7 @@ PoisonPill is a local-first Chrome Manifest V3 extension that flags predatory co
 | `manifest.json` | MV3 manifest, kept at the repo root. |
 | `package.json`, `tsconfig.json` | TypeScript typecheck + esbuild shell build. |
 | `scripts/` | Wasm parity, measurement, held-out, golden and size scripts. |
-| `docs/` | `CONTRACT.md`, `RULES.md`, `DECISIONS.md`, `KNOWN_LIMITS.md`, `BACKLOG.md`, `MEASUREMENTS.md`. |
+| `docs/` | `CONTRACT.md`, `RULES.md`, `DECISIONS.md`, `KNOWN_LIMITS.md`, `BACKLOG.md`, `HANDOFF.md`, `MEASUREMENTS.md`. |
 | `Makefile` | Build and verification entry points. |
 
 ## Build
