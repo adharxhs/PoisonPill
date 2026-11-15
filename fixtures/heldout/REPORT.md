@@ -2,10 +2,15 @@
 
 Written before the Wasm milestone and analysed once through the committed artifact. These documents are not used for tuning and have no goldens.
 
-- Date: 2026-11-14
-- Wasm artifact: 113175 bytes, sha256 `eec67c7d81d8fb346dd609606f4c3a95b2bbf92ee7155cb8c60926d148c53e33`
+- Date: 2026-11-15
+- Wasm artifact: 113158 bytes, sha256 `e5162b546eefc3778766ac802a5e1686f90cb433baac332acd7a9e6c123f9b80`
 - Documents: 14
 - Findings: 15
+
+> Re-run after a serialization-only fix: an empty report now prints
+> `poison_index:0.0` instead of `-0.0` (the float `sum()` seed). The diff
+> against the first run is exactly the artifact digest and those five values;
+> every finding and `P_I` is unchanged. This is not a tuning pass.
 
 ## Summary
 
@@ -49,7 +54,7 @@ Full input sha256: `117681fc0add0adfc9a81bfcd8435e268f895f52f4c5b3de1af824d1df9e
 Full input sha256: `0afda3dec5a9111bb6a95cf571fc454424823fb262f08fcea8b61bedab968be3`
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":-0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ### 03-employment-offer.txt
@@ -81,7 +86,7 @@ Full input sha256: `6267c27444fcf842f60373af28a3527154650d62ba293a9a0f6d60262240
 Full input sha256: `7b878236813e16fd7f2cfe0c8fcf00f37207662e997b085cdbc628aaad8cdd4f`
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":-0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ### 07-gym-membership.txt
@@ -97,7 +102,7 @@ Full input sha256: `d8160bfa858dbf211bf3e30473c5080817ccdbbc2c1dd82b2e3bc3c0f6ae
 Full input sha256: `e7827145a986612c255086d2d5c39f7d988b1ce9b844da6a46d7888258111fc4`
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":-0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ### 09-exchange-agreement.txt
@@ -113,7 +118,7 @@ Full input sha256: `a36883c26cfd09c978541cad51f9e71c640a3e6fcefc92fe5125747b3fac
 Full input sha256: `0fb6f918309db3aa7873db13c9e7a02f9e8cea9dde3423f7cdfddaddac471d36`
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":-0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ### 11-subscription-bullets.txt
@@ -129,7 +134,7 @@ Full input sha256: `a7d9b838c46188500f633df9f5135e358e2dc495349312fb95c22e29dda4
 Full input sha256: `234f08f37e64af76bc695f2c0906786f189fd77e9479646ae836398102d0da7e`
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":-0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ### 13-unicode-translation.txt

@@ -21,9 +21,9 @@ assertions. The only enforced limits are the 2 MiB size gate
 
 | Artifact | Bytes | Budget |
 | :--- | ---: | :--- |
-| `extension/public/engine.wasm` | 113,175 (110.5 KiB) | 2,097,152 (2 MiB) |
+| `extension/public/engine.wasm` | 113,158 (110.5 KiB) | 2,097,152 (2 MiB) |
 | `extension/public/engine.js` (glue) | 11,354 (11.1 KiB) | — |
-| sha256 (`engine.wasm`) | `eec67c7d81d8fb346dd609606f4c3a95b2bbf92ee7155cb8c60926d148c53e33` | — |
+| sha256 (`engine.wasm`) | `e5162b546eefc3778766ac802a5e1686f90cb433baac332acd7a9e6c123f9b80` | — |
 
 The artifact is ~5% of the size budget, so several categories can be authored
 before size becomes a concern.
@@ -38,7 +38,7 @@ report.
 | Path | Min | Median | Mean | Max | Notes |
 | :--- | ---: | ---: | ---: | ---: | :--- |
 | Native release (`analyze`) | — | 41.99 ms | — | — | One timed run after warm-up, including `Vec<ClauseFinding>` assembly. |
-| Wasm (`analyzeJson`) | 9.84 ms | 9.98 ms | 10.06 ms | 10.78 ms | 20 timed runs after two warm-ups, Node 22. |
+| Wasm (`analyzeJson`) | 10.01 ms | 10.20 ms | 10.37 ms | 11.25 ms | 20 timed runs after two warm-ups, Node 22. |
 
 The hard budget is 200 ms, so the native path has ~4.8× headroom and the shipped
 Wasm path ~20×. The native number being slower than Wasm is expected: the native

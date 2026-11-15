@@ -47,7 +47,12 @@ pub fn finding_contribution(finding: &ClauseFinding) -> f64 {
 
 /// Document-level `P_I`, clamped to `[0, 100]` and rounded to two decimals.
 pub fn poison_index(findings: &[ClauseFinding]) -> f32 {
-    let total: f64 = findings.iter().map(finding_contribution).sum();
+    // Fold from an explicit `0.0` instead of `sum()`: the float `Sum` seed is
+    // `-0.0`, which an empty report would serialise as `poison_index:-0.0`.
+    let total: f64 = findings
+        .iter()
+        .map(finding_contribution)
+        .fold(0.0, |sum, contribution| sum + contribution);
     let clamped = total.clamp(0.0, 100.0);
     let rounded = (clamped * 100.0).round() / 100.0;
     rounded as f32
@@ -122,7 +127,12 @@ mod tests {
 
     #[test]
     fn empty_document_scores_zero() {
-        assert_eq!(poison_index(&[]), 0.0);
+        let score = poison_index(&[]);
+        assert_eq!(score, 0.0);
+        assert!(
+            score.is_sign_positive(),
+            "an empty report must serialise as 0.0, not -0.0"
+        );
     }
 
     #[test]
