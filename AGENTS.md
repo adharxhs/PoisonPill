@@ -39,7 +39,7 @@ PoisonPill is a local-first Chrome Manifest V3 extension that flags predatory co
 npm install       # once: TypeScript, @types/chrome, esbuild
 make engine       # cargo + wasm-pack -> extension/public/{engine.js,engine.wasm}
 make extension    # esbuild -> ./dist
-make verify       # fmt, clippy, tests, wasm budget, native/Wasm parity, typecheck
+make verify       # fmt, clippy, tests, size/latency budgets, native/Wasm parity, typecheck
 make goldens      # explicit golden regeneration; review the diff
 ```
 
@@ -54,9 +54,9 @@ Prerequisites: `wasm-pack` (`cargo install wasm-pack`), the `wasm32-unknown-unkn
 - **The Wasm contract is snake_case JSON.** The Rust source of truth is `engine/src/model.rs`; `extension/src/types.ts` mirrors it exactly. `ClauseFinding` carries `category`, `label`, `rule_id`, `raw_text`, `modality`, `severity`, `start_offset`, `end_offset`, `opt_out_available`, `opt_out_target`, `inversion`, `reason`. Offsets are UTF-8 byte offsets into the exact input. `opt_out_target` is omitted when absent. See `docs/CONTRACT.md`.
 - **Analysis runs off the main thread.** All parsing goes through `worker.js`; the content script only posts text and consumes the report.
 - **`wasm-unsafe-eval` stays in the CSP.** Removing it breaks Wasm instantiation; widen nothing else.
-- **The reference shell makes no DOM writes.** No badges, highlights, shields, jump-to-clause or theming. Those are product features layered on the contract, not part of this base.
+- **The content script writes nothing to the page.** No badges, highlights, shields, jump-to-clause or theming. The popup renders the stored report in its own document only. Those other features are product work layered on the contract, not part of this base.
 - **Input work is bounded.** The engine analyses at most 512 KiB, cuts on a UTF-8 boundary, and sets `truncated`.
-- **Goldens never auto-update.** Tests compare; only `make goldens` writes. Held-out documents are run once at the Wasm milestone and are never tuned.
+- **Goldens never auto-update.** Tests compare; only `make goldens` writes. Held-out documents are run at the Wasm milestone and are never tuned. The one re-run was a serialization-only fix (`-0.0` → `0.0`); the recorded diff is the artifact digest and those values, with no finding changes.
 
 ## Conventions
 

@@ -10,7 +10,8 @@ category requires editing `rules.rs` control flow, the design has failed.
 | :--- | :--- |
 | `engine/src/lexicon.rs` | Phrase lists: waiver verbs, actors, assets, compliance guards, discretion markers. |
 | `engine/src/rules.rs` | `RuleSpec` / `Predicate` types, the evaluator, and authored rule data. |
-| `fixtures/tuned/` | Contract fixtures for rules. |
+| `fixtures/cases/` | The input `.txt` for every case, grouped `positive/`, `hard_negative/`, `negative/`. |
+| `fixtures/golden/` | One canonical envelope per case, written only by `make goldens`. |
 | `engine/tests/rule_format.rs` | Proves a synthetic category can be registered at runtime as data. |
 
 Only `forced_arbitration` is authored today. The other four taxonomy categories
@@ -152,9 +153,12 @@ Appending to the array is preferred; it keeps one ordered list.
 
 ### 3. Add fixtures
 
-Add `{id, text, expected_report}` cases under `fixtures/tuned/`, with at least
-two hard negatives for every positive. Run `make verify`. Goldens are never
-auto-updated: a diff is a decision to review.
+Add an input under `fixtures/cases/` — a `.txt` in `positive/` or in
+`hard_negative/` — then run `make goldens` to write the matching
+`fixtures/golden/` envelope. At least two hard negatives per positive: the
+`hard_negatives_outnumber_positives_two_to_one` test enforces the ratio. Run
+`make verify`. Goldens are never auto-updated by tests: a diff is a decision to
+review.
 
 ### 4. Prove the seam
 

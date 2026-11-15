@@ -8,6 +8,10 @@ dedicated Web Worker and never touches the network.
 - Working notes for agents: [`AGENTS.md`](AGENTS.md)
 - Wire contract: [`docs/CONTRACT.md`](docs/CONTRACT.md)
 - Rule format: [`docs/RULES.md`](docs/RULES.md)
+- Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- Known limits: [`docs/KNOWN_LIMITS.md`](docs/KNOWN_LIMITS.md)
+- Backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
+- Measurements: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md)
 
 ## Build
 
