@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 
-import type { ScanRecord } from './types';
+import type { ClauseFinding, ScanRecord } from './types';
 
 interface FindingExplanation {
   title: string;
@@ -82,11 +82,19 @@ export function buildPdf(record: ScanRecord): jsPDF {
   const width = pdf.internal.pageSize.getWidth() - margin * 2;
   const limit = pdf.internal.pageSize.getHeight() - margin - 16;
   let y = margin;
+  let continuedGroup: string | undefined;
 
   function room(height: number): void {
     if (y + height <= limit) return;
     pdf.addPage();
     y = margin;
+    if (continuedGroup) {
+      const size = pdf.getFontSize();
+      const color = pdf.getTextColor();
+      paragraph(`${continuedGroup} (continued)`, 11, true);
+      pdf.setFontSize(size);
+      pdf.setTextColor(color);
+    }
   }
 
   function unicodeParagraph(text: string, size: number, bold: boolean): boolean {
@@ -152,8 +160,18 @@ export function buildPdf(record: ScanRecord): jsPDF {
   const { report } = record;
   paragraph('PoisonPill contract scan', 24, true);
   paragraph(`Source: ${record.source_name ?? safeSource(record.url)}\nScanned: ${record.scanned_at}`);
-  const count = report.findings.length;
-  paragraph(`${count} ${count === 1 ? 'term' : 'terms'} to review`, 14, true);
+  const clauses = new Map<string, { quote: string; findings: ClauseFinding[] }>();
+  for (const finding of report.findings) {
+    const key = `${finding.start_offset}:${finding.end_offset}`;
+    const clause = clauses.get(key);
+    if (clause) clause.findings.push(finding);
+    else clauses.set(key, { quote: finding.raw_text, findings: [finding] });
+  }
+  const count = clauses.size;
+  paragraph(`${count} ${count === 1 ? 'clause' : 'clauses'} to review`, 14, true);
+  if (report.findings.length > count) {
+    paragraph(`${report.findings.length} issues ${count === 1 ? 'in this clause' : 'across these clauses'}.`);
+  }
   paragraph(report.truncated
     ? 'Only the first part of the source was checked because it exceeded the scan limit.'
     : record.source_name
@@ -166,36 +184,66 @@ export function buildPdf(record: ScanRecord): jsPDF {
   }
   if (!count) paragraph('The scan found no terms that matched the patterns it checks.');
 
-  for (const [index, finding] of report.findings.entries()) {
-    const explanation = EXPLANATIONS[finding.rule_id];
+  for (const [index, clause] of [...clauses.values()].entries()) {
+    const { quote, findings } = clause;
+    const grouped = findings.length > 1;
+    const disputeClause = findings.every((finding) => finding.category === 'forced_arbitration');
+    const groupTitle = disputeClause ? 'How you can resolve disputes' : 'Several issues in this clause';
     room(102);
     y += 10;
-    paragraph(`${index + 1}. ${explanation?.title ?? 'A term worth checking'}`, 15, true);
-    paragraph('What this could mean for you', 11, true);
-    paragraph(explanation?.meaning ?? 'The scan found wording that may affect your rights or what the company expects you to do. Read it together with the sections before and after it.');
-    room(45);
-    paragraph('What you can do', 11, true);
-    paragraph(explanation?.nextStep ??
-      'Save the terms and any messages about the issue. Ask the company in writing how this wording applies to you. If there is a large cost or a deadline approaching, ask a qualified local adviser.');
-    if (finding.opt_out_available) {
+    if (grouped) {
+      paragraph(`${index + 1}. ${groupTitle}`, 15, true);
+      continuedGroup = `${index + 1}. ${groupTitle}`;
+    }
+
+    for (const finding of findings) {
+      const explanation = EXPLANATIONS[finding.rule_id];
+      const title = explanation?.title ?? 'A term worth checking';
+      room(78);
+      paragraph(grouped ? title : `${index + 1}. ${title}`, grouped ? 12 : 15, true);
+      if (!grouped) paragraph('What this could mean for you', 11, true);
+      paragraph(explanation?.meaning ?? 'The scan found wording that may affect your rights or what the company expects you to do. Read it together with the sections before and after it.');
+      room(45);
+      paragraph('What you can do', 11, true);
+      paragraph(explanation?.nextStep ??
+        'Save the terms and any messages about the issue. Ask the company in writing how this wording applies to you. If there is a large cost or a deadline approaching, ask a qualified local adviser.');
+    }
+
+    const optOuts = new Map<string, { target?: string; text?: string }>();
+    for (const finding of findings) {
+      if (!finding.opt_out_available) continue;
+      const target = finding.opt_out_target;
+      const text = finding.opt_out_source?.text;
+      optOuts.set(JSON.stringify([target, text]), { target, text });
+    }
+    if (optOuts.size) {
+      room(52);
       paragraph('Can you say no to this part?', 11, true);
       paragraph('The scan found instructions for declining this part of the agreement. Check when your deadline starts, how to send the notice and what details to include. Keep proof that you sent it.');
-      if (finding.opt_out_target) paragraph(`Address listed in the terms: ${finding.opt_out_target}`);
-      if (finding.opt_out_source) paragraph(finding.opt_out_source.text);
-    } else if (finding.category === 'forced_arbitration') {
+      for (const { target, text } of optOuts.values()) {
+        if (target) paragraph(`Address listed in the terms: ${target}`);
+        if (text && text !== quote) paragraph(text);
+      }
+    } else if (findings.some((finding) => finding.category === 'forced_arbitration')) {
       paragraph('Check the surrounding section for instructions on whether you can decline these dispute terms.');
     }
     room(45);
     paragraph('What the terms say', 11, true);
-    paragraph(finding.raw_text);
+    paragraph(quote);
 
     room(48);
-    paragraph('Technical note', 11, true);
-    paragraph(`Rule: ${finding.rule_id} | Severity: ${finding.severity}/5. ${finding.reason}`, 9);
-    if (finding.evidence?.length) {
-      const excerpts = [...new Set(finding.evidence.map(({ text }) => text))];
-      paragraph(`Matched wording: ${excerpts.join(' | ')}`, 9);
+    paragraph(grouped ? 'Technical notes' : 'Technical note', 11, true);
+    for (const finding of findings) {
+      paragraph(`Rule: ${finding.rule_id} | Severity: ${finding.severity}/5. ${finding.reason}`, 9);
+      if (finding.evidence?.length) {
+        const excerpts = [...new Set(finding.evidence.map(({ text }) => text))];
+        paragraph(`Matched wording: ${excerpts.join(' | ')}`, 9);
+      }
     }
+    if (new Set(findings.map((finding) => finding.category)).size < findings.length) {
+      paragraph('Findings in the same category count once toward the Poison Index for this clause.', 9);
+    }
+    continuedGroup = undefined;
   }
 
   if (count) {
