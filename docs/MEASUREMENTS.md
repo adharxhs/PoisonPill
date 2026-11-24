@@ -253,4 +253,27 @@ python3 scripts/evaluate-exact-rules.py /path/to/tos-100/test.csv engine/target/
 
 The script compares scored rule IDs only. The review classifier and the
 published ToS-100 broad labels do not set expected results for this panel.
-The panel was kept separate from rule authoring and model training.
+The panel was kept separate from model training. The figures above are
+the initial readout, before using its misses to guide rule fixes.
+
+### Targeted fix rerun
+
+The same 35 clauses and unchanged annotations were used to retest the fixes.
+
+| Input context | Exact clauses | Expected matches found | Missed | Extra |
+| --- | ---: | ---: | ---: | ---: |
+| Original text only | 34/35 | 22/23 | 1 | 0 |
+| Text with the published provider label | 35/35 | 23/23 | 0 | 0 |
+
+The lowercase eDreams excerpt in the text-only run lacks an explicit provider
+role or capitalized name. Its published provider label gives the rule enough
+context to tie the amendment to the provider. The browser supplies the page
+hostname for equivalent cases. Both benchmark modes use the same rules and
+keep the original clause offsets intact.
+
+```sh
+python3 scripts/evaluate-exact-rules.py /path/to/tos-100/test.csv engine/target/release/evaluate --with-provider
+```
+
+These are regression results on the panel used to diagnose the fixes. An
+independent sample is needed to measure generalization.

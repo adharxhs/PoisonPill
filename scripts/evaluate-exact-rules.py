@@ -18,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dataset", type=Path, help="Original ToS-100 test.csv")
     parser.add_argument("engine", type=Path, help="Built native evaluate binary")
+    parser.add_argument("--with-provider", action="store_true",
+                        help="Supply the published provider label as site context")
     args = parser.parse_args()
 
     if hashlib.md5(args.dataset.read_bytes()).hexdigest() != SOURCE_MD5:
@@ -29,7 +31,11 @@ def main():
     selected = [clauses[int(label["row"])] for label in labels]
     if any(row["document"] != label["provider"] for row, label in zip(selected, labels)):
         parser.error("provider name does not match the pinned row")
-    payload = "".join(json.dumps(row["text"], ensure_ascii=False) + "\n" for row in selected)
+    inputs = (
+        ({"text": row["text"], "provider": row["document"]} if args.with_provider else row["text"])
+        for row in selected
+    )
+    payload = "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in inputs)
     result = subprocess.run(
         [str(args.engine.resolve())], input=payload, encoding="utf-8", capture_output=True, check=True,
     )
