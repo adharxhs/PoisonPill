@@ -113,8 +113,9 @@ surrogate pair. The popup and PDF show when either limit truncates the scan.
 
 The content script reads `document.body.innerText`. Shadow DOM, embedded frames,
 canvas content, and PDF viewer text can be outside the scan. Automatic scans
-use a legal-page heuristic and a 200-character minimum. Tab activation and **Refresh report** scan visible text in the active tab,
-including short pages and in-place updates. Browser-internal pages and pages
+require a likely legal URL, title, or main heading and non-empty visible text.
+A footer link or consent checkbox alone does not trigger a scan. **Refresh
+report** can scan other pages on demand. Browser-internal pages and pages
 without a content script cannot be inspected. Automatic scans after changes
 within a tab remain open.
 
