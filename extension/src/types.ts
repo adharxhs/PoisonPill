@@ -83,6 +83,7 @@ export interface AnalyzeRequest {
   input_truncated?: boolean;
   review?: boolean;
   local_pdf?: boolean;
+  open_popup_on_load?: boolean;
 }
 
 /** Returns a bundled report so UI work needs no Wasm build. */

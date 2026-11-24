@@ -65,7 +65,11 @@ function scheduleRescan(): void {
   }, RESCAN_DELAY_MS);
 }
 
-async function scan(review = false, snapshot = readPageText(document)): Promise<ScanRecord> {
+async function scan(
+  review = false,
+  snapshot = readPageText(document),
+  openPopupOnLoad = false,
+): Promise<ScanRecord> {
   const { text, truncated } = snapshot;
   if (!text.trim()) throw new Error('This page has no visible text to scan.');
   if (looksLegal()) observeDocuments(snapshot.documents);
@@ -74,7 +78,10 @@ async function scan(review = false, snapshot = readPageText(document)): Promise<
   const url = location.href;
   scanInFlight = true;
   try {
-    const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: truncated, review };
+    const request: AnalyzeRequest = {
+      type: 'ANALYZE_TEXT', text, input_truncated: truncated, review,
+      open_popup_on_load: openPopupOnLoad,
+    };
     const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
     if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
     if (sequence !== scanSequence || location.href !== url) {
@@ -89,8 +96,12 @@ async function scan(review = false, snapshot = readPageText(document)): Promise<
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: unknown, sender, respond: (response: PageScanResponse | JumpToClauseResponse) => void) => {
+  (message: unknown, sender, respond: (response: PageScanResponse | JumpToClauseResponse | boolean) => void) => {
     if (sender.id !== chrome.runtime.id || sender.tab) return false;
+    if (message === 'CAN_OPEN_LOADED_REPORT') {
+      respond(document.visibilityState === 'visible' && looksLegal());
+      return false;
+    }
     if (isJumpToClauseRequest(message)) {
       respond(highlightClause(message));
       return false;
@@ -125,7 +136,7 @@ if ('navigation' in window && window.navigation instanceof EventTarget) {
 }
 
 if (document.visibilityState === 'visible' && looksLegal()) {
-  void scan().catch(() => {
+  void scan(false, readPageText(document), true).catch(() => {
     // A manual refresh is available when automatic scanning skips the page.
   });
 }

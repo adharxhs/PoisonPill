@@ -38,6 +38,8 @@ Node alone; Rust is needed only to change detection logic.
 - Analyses bounded visible text and reports truncation at the page and engine limits.
 - Loading, switching to, or changing the visible text of a likely legal page triggers a scan. Refresh report scans it on demand. Visible same-origin HTML embeds are included. Download PDF gives a plain-language explanation, practical steps, and a short technical note for each finding.
 
+- On Chrome 127+, the toolbar popup opens after the first automatic scan of a
+  legal page loaded in the active tab.
 - **Scan a PDF** opens a local file picker for text-based PDFs. The scan runs on this device and can export its own report.
 - **Review more clauses** runs a bundled n-gram model offline. Possible clauses
   appear in a separate list and leave the Poison Index and PDF findings intact.

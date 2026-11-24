@@ -173,6 +173,27 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (pendingActivation?.tabId === tabId) pendingActivation = undefined;
 });
 
+async function openLoadedReport(
+  tabId: number,
+  windowId: number,
+  documentId: string,
+  revision: number,
+): Promise<void> {
+  if (typeof chrome.action.openPopup !== 'function') return;
+  try {
+    // Ask the original document, so a navigation or background tab cannot
+    // open the popup over a different page.
+    const visible = await chrome.tabs.sendMessage<string, boolean>(
+      tabId, 'CAN_OPEN_LOADED_REPORT', { documentId },
+    );
+    if (visible === true && revision === activeScanRevision) {
+      await chrome.action.openPopup({ windowId });
+    }
+  } catch {
+    // A browser can decline the action. The report is still saved.
+  }
+}
+
 async function handlePageRequest(request: WorkerRequest, sender: chrome.runtime.MessageSender): Promise<WorkerResponse> {
   if (request.type === 'ANALYZE_TEXT' && request.local_pdf === true &&
     sender.url === chrome.runtime.getURL('pdf.html')) {
@@ -200,6 +221,9 @@ async function handlePageRequest(request: WorkerRequest, sender: chrome.runtime.
     const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (activeTab?.id === tabId && revision === activeScanRevision) {
       await chrome.storage.local.set({ last_scan: record });
+      if (request.open_popup_on_load === true && sender.frameId === 0 && sender.documentId) {
+        await openLoadedReport(tabId, activeTab.windowId, sender.documentId, revision);
+      }
     }
   }
   return { ...response, record };
