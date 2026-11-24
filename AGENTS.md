@@ -1,82 +1,57 @@
 # AGENTS.md
 
-PoisonPill is a local-first Chrome Manifest V3 extension that flags predatory contract clauses using a Rust→WebAssembly deontic parser. It must never make a network request.
+PoisonPill is a local Chrome Manifest V3 extension. Read the
+[product specification](docs/PRODUCT.md) before changing behavior.
 
-`PoisonPill Project Documentation (1).md` is the product spec: taxonomy, formulas, directory layout, and illustrative code. Read it before changing behaviour. Its snippets are partial examples, not the shipped implementation — this file describes the actual repo.
-
-## Layout
-
-| Path | Role |
-| :--- | :--- |
-| `engine/` | Rust crate compiled to `wasm-bindgen`. The only place detection logic lives. |
-| `engine/src/lib.rs` | Module wiring and re-exports; the wasm binding module is scoped separately. |
-| `engine/src/model.rs` | Wire contract v1: `ClauseFinding`, `DocumentReport`, typed errors. |
-| `engine/src/tokenizer.rs` | Linear sentence splitter with offsets and abbreviation guards. |
-| `engine/src/deontic.rs` | Engine entry point, sentence walk, input cap, finding assembly. |
-| `engine/src/optout.rs` | Opt-out action/window/address detection. |
-| `engine/src/exceptions.rs` | Boundary-marker inversion calculus (`InversionShape`). |
-| `engine/src/lexicon.rs` | Phrase data (actors, verbs, assets, guards) the content engineer extends. |
-| `engine/src/rules.rs` | Declarative `RuleSpec` data and the category-agnostic evaluator. |
-| `engine/src/scoring.rs` | Document-level `P_I`, `μ`, `τ`. |
-| `engine/src/bin/analyze.rs` | Native CLI; prints the canonical envelope and generates goldens. |
-| `engine/tests/fixtures.rs` | Corpus/golden harness and offset invariants. |
-| `engine/tests/rule_format.rs` | Runtime registration proof for the declarative rule format. |
-| `engine/tests/budgets.rs` | Ignored 10k-word release latency budget. |
-| `engine/tests/labelled.rs` | Labelled dev-set precision guard and per-rule recall report. |
-| `fixtures/labelled/` | Clause-level dev set (`clauses.tsv`); not held out. |
-| `fixtures/cases/` | Positive, hard-negative and ordinary-negative regression corpus. |
-| `fixtures/golden/` | Exact canonical envelopes; never written by tests. |
-| `fixtures/heldout/` | One-shot corpus and its recorded `REPORT.md`. |
-| `extension/src/` | TypeScript: `content.ts`, `worker.ts`, `popup.ts`, `types.ts`. |
-| `extension/public/` | Static assets plus the committed `engine.js`/`engine.wasm` and `playback.json`. |
-| `manifest.json` | MV3 manifest, kept at the repo root. |
-| `package.json`, `tsconfig.json` | TypeScript typecheck + esbuild shell build. |
-| `scripts/` | Wasm parity, measurement, held-out, golden and size scripts. |
-| `docs/` | `CONTRACT.md`, `RULES.md`, `DECISIONS.md`, `KNOWN_LIMITS.md`, `BACKLOG.md`, `HANDOFF.md`, `MEASUREMENTS.md`. |
-| `Makefile` | Build and verification entry points. |
-
-## Build
-
-```sh
-npm install       # once: TypeScript, @types/chrome, esbuild
-make engine       # cargo + wasm-pack -> extension/public/{engine.js,engine.wasm}
-make extension    # esbuild -> ./dist
-make verify       # fmt, clippy, tests, size/latency budgets, native/Wasm parity, typecheck
-make goldens      # explicit golden regeneration; review the diff
-```
-
-`dist/` is the unpacked extension (manifest, icons, compiled JS, public assets flattened to its root). Load it with `chrome://extensions` → *Load unpacked*. Never commit `dist/`, `engine/target/`, or `engine/pkg/`.
-
-Prerequisites: `wasm-pack` (`cargo install wasm-pack`), the `wasm32-unknown-unknown` target, and Node 22+. The built `extension/public/engine.js` and `engine.wasm` are committed, so extension work needs only Node; Rust is needed only when the engine changes.
+- **Detection** — read [Rule Format](docs/RULES.md) and [Fixtures](fixtures/README.md)
+  before editing Rust rules, tokenization, exceptions, or the review model.
+- **Contract** — read [Wire Contract](docs/CONTRACT.md) before changing report
+  fields, offsets, opt-out association, messages, or storage. Keep
+  `engine/src/model.rs` and `extension/src/types.ts` in sync.
+- **Coverage and measurement** — read [Known Limits](docs/KNOWN_LIMITS.md) and
+  [Measurements](docs/MEASUREMENTS.md) before changing a detection claim or benchmark.
 
 ## Invariants
 
-- **Zero network egress.** No `fetch`, `XMLHttpRequest`, WebSocket, telemetry, CDN fonts, or remote stylesheets. The single `fetch` in `worker.ts` reads `chrome.runtime.getURL('playback.json')`, a local extension resource. `manifest.json` grants `storage` only — `host_permissions` stays empty.
-- **Detection lives in Rust.** Content scripts extract text and display the stored report; they never classify clauses. Adding a heuristic in TypeScript is a design regression.
-- **`analyzeJson` returns a string.** The worker must `JSON.parse` it before unwrapping the envelope.
-- **The Wasm contract is snake_case JSON.** The Rust source of truth is `engine/src/model.rs`; `extension/src/types.ts` mirrors it exactly. `ClauseFinding` carries `category`, `label`, `rule_id`, `raw_text`, `modality`, `severity`, `start_offset`, `end_offset`, `opt_out_available`, `opt_out_target`, `inversion`, `reason`. Offsets are UTF-8 byte offsets into the exact input. `opt_out_target` is omitted when absent. See `docs/CONTRACT.md`.
-- **Analysis runs off the page's main thread.** All parsing goes through `worker.js`, the extension's MV3 background service worker; the content script sends text with `chrome.runtime.sendMessage` and stores the response. A content script cannot construct a `Worker` from a `chrome-extension://` URL (cross-origin `SecurityError`), so do not reintroduce `new Worker` there.
-- **`wasm-unsafe-eval` stays in the CSP.** Removing it breaks Wasm instantiation; widen nothing else.
-- **Keep the page DOM read-only.** The popup renders the stored report in its own document. Jump to clause scrolls a rendered element containing a unique exact source match.
-- **Input work is bounded.** The engine analyses at most 512 KiB, cuts on a UTF-8 boundary, and sets `truncated`.
-- **Goldens never auto-update.** Tests compare; only `make goldens` writes. Held-out documents are run at the Wasm milestone and are never tuned. The one re-run was a serialization-only fix (`-0.0` → `0.0`); the recorded diff is the artifact digest and those values, with no finding changes.
+- Keep clause detection and scoring in Rust. TypeScript handles input selection,
+  extraction, transport, storage, and presentation. The worker parses the JSON
+  string from Wasm before unwrapping the typed envelope.
+- Keep runtime egress at zero. Load PDF.js, fonts, CMaps, Wasm, and playback data
+  from packaged extension assets. Keep `storage` as the sole API permission,
+  `host_permissions` empty, and the manifest CSP intact, including
+  `wasm-unsafe-eval` and `connect-src 'self'`.
+- Run analysis in the background service worker. A content script sends text
+  via `chrome.runtime.sendMessage`. It cannot construct a Worker from an
+  extension URL. The page stays free of injected UI or markup. Jump to Clause
+  uses scrolling and the CSS Custom Highlight API.
+- Preserve UTF-8 byte offsets into the exact input. The engine cuts oversize
+  input at a character boundary at or below 512 KiB. Keep LF normalization
+  from `.gitattributes` so offsets and goldens remain portable.
+- Keep the comparison store limited to digests and timestamps. Keep review
+  candidates separate from scored findings and PDF findings.
+- Use Rust 2021, keep the engine free of Chrome APIs, and preserve
+  `#![deny(unsafe_code)]`. Handle user text without panicking. Use strict
+  TypeScript and validate messages at the boundary.
 
-## Conventions
+## Build and verify
 
-- Rust: edition 2021, `#![deny(unsafe_code)]` unless a comment justifies it, no panics on user text (`unwrap` only on serialisation of owned structs).
-- Category authoring and weights follow `docs/RULES.md`. Scores are normalized to `P_I ∈ [0, 100]` at the document level.
-- Opt-out evidence requires an action and a window in one sentence. See `docs/CONTRACT.md` before changing association or the wire contract. Rust owns extraction and association. The popup may display or copy a local draft.
-- Keep `engine` free of Chrome APIs so it stays testable with plain `cargo test`.
-- TypeScript: strict mode, no `any` at the worker boundary, explicit `MessageEvent` types.
+Follow the [build instructions](README.md#build-and-load). `dist/` is the
+flattened extension root. Keep `dist/`, `engine/target/`, and `engine/pkg/`
+out of commits.
 
-## Gotchas
+1. After a Rust or model change, run `make engine` and include the rebuilt
+   `extension/public/engine.js` and `engine.wasm` in the change.
+2. For intentional fixture or report changes, run `make goldens` and review
+   the diff. Tests read goldens. Preserve the original held-out report and
+   use a new frozen set for an independent evaluation.
+3. Run `make verify` to check formatting, lint, tests, release budgets,
+   native/Wasm parity, and TypeScript. For extension changes, build with
+   `make extension` and exercise the affected flow in the unpacked extension.
 
-- `.gitattributes` pins LF. Offsets are byte offsets, so a CRLF checkout (Git for Windows with `core.autocrlf=true`) would shift every golden; do not remove it.
-- On Windows without Visual Studio Build Tools, the MSVC Rust toolchain cannot link. Use `stable-x86_64-pc-windows-gnu` (`rustup toolchain install stable-x86_64-pc-windows-gnu -t wasm32-unknown-unknown`, then `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-gnu`). Building `wasm-bindgen-cli` from source there also needs a MinGW assembler; installing the prebuilt `wasm-pack`/`wasm-bindgen` release binary is simpler.
+The background worker is a classic script and loads `engine.js` with top-level
+`importScripts`. Content and popup bundles are IIFEs. The PDF scanner is a
+module and loads the packaged PDF.js worker.
 
-- `manifest.json` references the flattened `dist/` root, so asset paths (`icons/…`, `popup.html`) are relative to `dist`, not `extension/`.
-- `engine.js`/`engine.wasm` are committed despite living in `public/`. After changing Rust, run `make engine` and commit both files; `make parity` tests the committed bytes.
-- Chrome loads `worker.js` as a classic service worker (no `"type": "module"`), so `importScripts('engine.js')` must stay at top level; content/popup scripts are classic scripts. `tsconfig.json` is typecheck-only (`noEmit`); esbuild emits IIFE bundles. Never emit ES modules or CommonJS `exports` references for these entry points.
-- The executable entry points are `extension/src/content.ts`, `worker.ts`, and `popup.ts`; `types.ts` is type-only and is not bundled.
-- The spec's `$P_I$` weighting uses per-category `w_k`; the taxonomy table is authoritative when numbers disagree.
-- Scan comparison stores bounded SHA-256 baselines under `chrome.storage.local`. Keep historical clause and agreement text out of the comparison store.
+On Windows without Visual Studio Build Tools, use the Rust GNU toolchain
+(`stable-x86_64-pc-windows-gnu`) with the Wasm target. Prebuilt `wasm-pack` and
+`wasm-bindgen` binaries avoid the extra MinGW tooling needed to build the CLI.

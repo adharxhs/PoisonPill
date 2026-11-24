@@ -1,4 +1,4 @@
-# Wire Contract v1
+# Wire contract v1.1
 
 This document is the boundary between the Rust engine and everything written in
 TypeScript. The Rust source of truth is `engine/src/model.rs`; the TypeScript
@@ -7,7 +7,7 @@ mirror is `extension/src/types.ts`. Change both in the same commit and bump
 
 All JSON uses **snake_case**. The canonical representation is the Rust
 `serde_json` string returned by `LegalEngine.analyze_json`. The worker parses
-that string; it does not reshape it.
+that string and unwraps the typed envelope.
 
 ## `ClauseFinding`
 
@@ -16,16 +16,16 @@ by the deterministic order of rules in the registry.
 
 | Field | Type | Meaning |
 | :--- | :--- | :--- |
-| `category` | string | Stable machine id, e.g. `forced_arbitration`. |
-| `label` | string | Human label, e.g. `Forced Arbitration & Class Waiver`. |
-| `rule_id` | string | The concrete rule that fired, e.g. `forced_arbitration.class_action_waiver`. |
+| `category` | string | Stable category ID such as `forced_arbitration`. |
+| `label` | string | Human-readable category label. |
+| `rule_id` | string | Stable ID of the rule that fired. |
 | `raw_text` | string | Exact clause slice, trimmed of surrounding whitespace. |
 | `modality` | `obligation` \| `permission` \| `prohibition` \| `waiver` | Deontic edge carried by the clause. |
-| `severity` | number | Base category weight `w_k` in `[1.0, 5.0]`. **Not** the poison-index contribution. |
+| `severity` | number | Rule weight in `[1.0, 5.0]`. See the document score below. |
 | `start_offset` | integer | Inclusive byte offset of `raw_text` in the exact input string. |
 | `end_offset` | integer | Exclusive byte offset of `raw_text` in the exact input string. |
-| `opt_out_available` | boolean | The clause, or one unambiguous neighbouring clause in the same block, states an opt-out action *and* a window. See *Opt-out semantics*. |
-| `opt_out_target` | string? | Verified email address, or omitted. Only present when `opt_out_available` is true. |
+| `opt_out_available` | boolean | An associated source states an opt-out action and a window. See the association rules below. |
+| `opt_out_target` | string? | Syntactically valid email address extracted from the source, when present. |
 | `inversion` | see below | Effect of exception markers on this clause. |
 | `reason` | string | One sentence explaining which matched data made the rule fire. |
 
@@ -41,7 +41,7 @@ Offsets are **UTF-8 byte offsets**, always on character boundaries. They index t
 string passed to the engine. When the engine truncates oversize input, findings
 only cover the prefix and their offsets remain valid for the original string.
 
-The hard cap is **512 KiB** (524,288 bytes, roughly 80,000 words). Input beyond
+The hard cap is **512 KiB** (524,288 bytes). Input beyond
 the cap is not analysed: the engine cuts on a character boundary, sets
 `truncated`, and returns findings for the prefix only. A caller should surface
 that state rather than retrying with the same text.
@@ -104,16 +104,15 @@ The engine detects the address; generating mail is out of scope for the engine.
 | `schema_version` | string | `"1.1"` for the category-based score. |
 | `findings` | `ClauseFinding[]` | Sorted, as above. |
 | `poison_index` | number | Document-level `P_I` in `[0, 100]`, rounded to two decimals. |
-| `truncated` | boolean | Input exceeded the 512 KiB cap; only a prefix was analysed. |
+| `truncated` | boolean | The engine or extraction layer limited the input. The report covers only the portion scanned. |
 
 `P_I = 100 × (1 − product(1 − w_k/10))`, where `w_k` is the maximum severity
 in each detected category. Categories combine with diminishing returns.
 Repeated clauses, discretion wording, and opt-out flags do not add or
-subtract points. The drawer displays every finding and any opt-out wording.
+subtract points. The report retains every scored finding and any linked opt-out wording.
 
 The popup asks for a fresh scan when a stored report uses an older schema
 version. Version 1.0 scores used a different scale and are historical.
-
 
 ## Canonical response envelope
 
@@ -127,60 +126,50 @@ version. Version 1.0 scores used a different scale and are historical.
 {"status":"error","error":{"code":"invalid_input","message":"..."}}
 ```
 
-`code` is one of `internal_serialization` or `invalid_input`. The worker checks
-`status` and forwards a typed `EngineError`; it never guesses from a string.
+`internal_serialization` represents an internal failure. `invalid_input` is
+reserved for input validation. The worker checks `status` and forwards a
+typed `EngineError`.
 
 ## Worker messages
 
-The worker lives in `extension/src/worker.ts` and speaks these shapes.
+The message shapes are defined in [types.ts](../extension/src/types.ts).
+`ANALYZE_TEXT` carries the text and optional flags for extraction truncation,
+explicit model review, local PDF mode, and opening the popup after the initial
+legal-page scan. `PLAYBACK_FIXTURE` reads a packaged engine response for UI work.
 
-### Requests
+The worker returns `ANALYSIS_RESULT` with a report and any applicable scan
+record, comparison, and review candidates. Failures return `ANALYSIS_ERROR`
+with an `EngineError`. The worker propagates extraction truncation to
+`report.truncated`.
 
-```ts
-type WorkerRequest =
-  | { type: 'ANALYZE_TEXT'; text: string }
-  | { type: 'PLAYBACK_FIXTURE' };
-```
+### Storage and tab ownership
 
-`PLAYBACK_FIXTURE` returns a bundled report so UI work needs no Rust toolchain.
+The worker writes the latest applicable web scan to
+`chrome.storage.local["last_scan"]`. The record includes the URL, tab ID,
+scan timestamp, report, and optional comparison and review candidates. It
+may contain the source excerpts in the report. The worker checks that the
+originating tab remains active before replacing the record, and the popup
+only displays a record for its active tab.
 
-### Responses
+The PDF scanner sends extracted text with `local_pdf: true` and keeps its
+report in memory for export. It supplies the filename as `source_name` when
+building the export. A PDF scan bypasses web scan storage and comparison.
 
-```ts
-type WorkerResponse =
-  | { type: 'ANALYSIS_RESULT'; report: DocumentReport }
-  | { type: 'ANALYSIS_ERROR'; error: EngineError };
-```
+### Page actions
 
-The worker unwraps the canonical envelope into `ANALYSIS_RESULT`; it does not
-expose the envelope to the content script.
+The popup sends `REFRESH_PAGE_REPORT`, `REVIEW_PAGE_REPORT`, or
+`JUMP_TO_CLAUSE` to the active tab's content script. Refresh and review
+return a scan record or an error message. Jump to Clause carries the page
+URL, clause text, start offset, and evidence excerpts. A successful jump
+reports whether it highlighted the matching evidence or the entire clause.
 
-### Storage record
-
-The content script stores exactly one record per scan under
-`chrome.storage.local["last_scan"]`:
-
-```ts
-interface ScanRecord {
-  url: string;
-  scanned_at: string; // ISO timestamp owned by the UI, never part of the report
-  report: DocumentReport;
-}
-```
-
-Tab activation asks the selected tab’s content script to scan if its URL, title, or main heading identifies a likely legal page. The
-worker checks that the originating tab is still active before replacing
-`last_scan`. The popup only shows a stored report for its current tab.
-
-Same-origin embedded HTML is appended to the source text, separated by
-paragraph breaks. Automatic in-page updates reuse the same pipeline and skip
-identical text. The dedicated PDF scanner sends locally extracted text with
-`local_pdf: true` and retains its report in that tab for export. It does not
-replace the active web-page report or its comparison baseline.
+The worker requests `AUTO_PAGE_REPORT` on tab activation. Before opening
+the toolbar popup after an initial scan, it asks the originating document
+whether it is still visible and eligible.
 
 ## Optional review
 
-`analyzeReviewJson` returns a pair containing the standard response envelope
+`analyzeReviewJson` and `analyzeReviewJsonForSite` return a pair containing the standard response envelope
 and up to 25 model suggestions. Each suggestion has a category and a
 `source` excerpt with original UTF-8 byte offsets. A category already
 reported by a rule for the same sentence is omitted from suggestions. The
@@ -205,7 +194,7 @@ UTF-8 offsets remain unchanged.
 
 ## Determinism
 
-Identical input produces byte-identical `analyze_json` output across native and
-Wasm builds. There are no timestamps, hash-map iteration orders, or
+Identical text and provider context produce byte-identical canonical output
+across native and Wasm builds. There are no timestamps, hash-map iteration orders, or
 locale-dependent operations in the report. `scanned_at` lives only in
 `ScanRecord`.

@@ -1,31 +1,17 @@
-# Labelled clause set
+# Labelled arbitration development set
 
-A small, clause-level development set used to measure rule recall and guard
-precision for individual Forced Arbitration rules. It is **not** the held-out
-corpus: it was written to probe specific rules and the lexicon was extended while
-looking at it, so its numbers are optimistic development numbers, not an
-accuracy estimate. `fixtures/heldout/` remains the frozen one-shot record.
+`clauses.tsv` holds one clause per line as `label<TAB>text`. Comments beginning
+with `#` and blank lines are ignored. A positive label names the expected
+arbitration rule. The `none` label marks a near miss and requires zero findings.
 
-## Format
-
-`clauses.tsv`: one clause per line, `label<TAB>text`. Lines starting with `#`
-and blank lines are ignored.
-
-| Label | Meaning |
-| :--- | :--- |
-| `mandatory_arbitration`, `court_access_waiver`, `class_action_bar`, ... | The clause is predatory and this rule is the one it should exercise. |
-| `none` | A near miss: the clause must produce no finding. |
-
-A positive counts as a **category hit** when any `forced_arbitration` finding is
-produced, and as a **rule hit** when the labelled rule is the one reported (a
-clause reports one finding per category, chosen by registry order).
-
-## Running
+A category hit is any `forced_arbitration` finding. A rule hit requires the
+labelled rule ID among the reported findings. The lexicon was developed using
+these examples, so treat the results as regression measurements.
 
 ```sh
-cargo test --manifest-path engine/Cargo.toml --test labelled -- --nocapture
+cargo test --manifest-path engine/Cargo.toml --test labelled
+cargo test --manifest-path engine/Cargo.toml --test labelled -- --ignored --nocapture
 ```
 
-`negatives_never_fire` always runs and fails on any false positive.
-`report_recall` is ignored by default and prints the per-rule table recorded in
-`docs/MEASUREMENTS.md`.
+The first command runs the regular guards. The second runs the optional recall
+report. See [measurements](../../docs/MEASUREMENTS.md) for the recorded counts.

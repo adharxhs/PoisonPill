@@ -1,66 +1,49 @@
 # PoisonPill: Local Legal Shield
 
-A zero-telemetry Chrome extension (Manifest V3) that deterministically exposes
-predatory contract clauses. A Rust→WebAssembly deontic parser runs inside a
-dedicated Web Worker and never touches the network.
+PoisonPill is a local Chrome Manifest V3 extension that flags potentially
+harmful wording in terms of service, privacy policies, and other agreements.
+Its Rust engine runs as WebAssembly in the extension's background service
+worker. Page scans, PDF scans, and report exports run on the device.
 
-- Spec: [`PoisonPill Project Documentation (1).md`](PoisonPill%20Project%20Documentation%20(1).md)
-- Working notes for agents: [`AGENTS.md`](AGENTS.md)
-- Wire contract: [`docs/CONTRACT.md`](docs/CONTRACT.md)
-- Rule format: [`docs/RULES.md`](docs/RULES.md)
-- Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)
-- Known limits: [`docs/KNOWN_LIMITS.md`](docs/KNOWN_LIMITS.md)
-- Backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
-- Handoff: [`docs/HANDOFF.md`](docs/HANDOFF.md)
-- Measurements: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md)
+## Build and load
 
-## Build
+Use Node 22 or later. The repository includes the built Rust engine.
 
 ```sh
-npm install       # once: TypeScript, @types/chrome, esbuild
-make engine       # Rust core -> committed extension/public/engine.{js,wasm}
-make extension    # bundle TS + assemble ./dist
-make verify       # fmt, clippy, tests, size/latency budgets, Wasm parity, typecheck
+npm ci
+make extension
 ```
 
-Load `dist/` from `chrome://extensions` → *Load unpacked*.
+Open `chrome://extensions` (or `brave://extensions`), enable **Developer mode**,
+and choose **Load unpacked**. Select the generated `dist/` directory. After
+rebuilding, reload the extension and refresh any open pages you want to scan.
 
-The Wasm artifacts are committed, so the extension can be built and loaded with
-Node alone; Rust is needed only to change detection logic.
+To build or verify the Rust engine, install Rust, the
+`wasm32-unknown-unknown` target, and `wasm-pack`. Then run `make verify`.
+Run `make typecheck` for a TypeScript-only check.
 
-## What this base does
+## Scan an agreement
 
-- Splits contract text into offset-aware sentences and evaluates declarative
-  rules for arbitration and waivers, unilateral changes without notice, broad IP grants, indemnity, advertising data sharing, liability caps, and termination notice asymmetry.
-- Detects opt-out actions, windows, and addresses. A bare email is not an opt-out.
-- Returns a canonical JSON report with a document-level poison index and is
-  byte-identical between native and Wasm builds.
-- Analyses bounded visible text and reports truncation at the page and engine limits.
-- Loading, switching to, or changing the visible text of a likely legal page triggers a scan. Refresh report scans it on demand. Visible same-origin HTML embeds are included. Download PDF gives a plain-language explanation, practical steps, and a short technical note for each finding.
+- Open or switch to a likely legal page. The extension scans the visible text
+  and rescans when it changes. On Chrome 127 or later, the toolbar popup can
+  open after the first automatic scan of a newly loaded legal page.
+- Use **Refresh report** to scan the active page on demand. Use **Jump to
+  clause** to scroll to and highlight matched wording when the source can be
+  located. Findings with a supported arbitration opt-out may offer a copyable
+  draft.
+- Use **Review more clauses** for optional offline model suggestions on a web
+  page. The popup lists these separately from the scored findings.
+- Use **Scan a PDF** to choose a local PDF with selectable text. Use the
+  download button in either scan view to save a grouped report with
+  plain-language explanations, practical next steps, and technical evidence.
 
-- On Chrome 127+, the toolbar popup opens after the first automatic scan of a
-  legal page loaded in the active tab.
-- **Scan a PDF** opens a local file picker for text-based PDFs. The scan runs on this device and can export its own report.
-- **Review more clauses** runs a bundled n-gram model offline. Possible clauses
-  appear in a separate list and leave the Poison Index and PDF findings intact.
-  See [the provider-separated benchmark](docs/MEASUREMENTS.md#provider-separated-tos-100-review-experiment).
+See the [product specification](docs/PRODUCT.md) for the score, coverage, and
+report behavior. See [known limits](docs/KNOWN_LIMITS.md) for what can escape a
+scan and [measurements](docs/MEASUREMENTS.md) for the latest test results.
 
-## What it deliberately does not do
+## Developer references
 
-Persistent in-page annotations and a browsable scan history. Jump to clause
-scrolls to a unique source match and briefly highlights its matched wording. Complete
-scans can compare visible text and findings with a saved SHA-256 baseline.
-The popup displays the last report and can prepare an editable arbitration
-opt-out draft when it has the source wording. See [`docs/BACKLOG.md`](docs/BACKLOG.md).
-
-## Tests and fixtures
-
-```sh
-make test         # unit, integration, corpus/golden invariants
-make goldens      # regenerate goldens deliberately; tests never write them
-make parity       # shipped Wasm vs native goldens, byte for byte
-```
-
-The corpus lives in `fixtures/`; hard negatives are held at 2× positives. The
-held-out corpus was run once against the shipped artifact and recorded in
-[`fixtures/heldout/REPORT.md`](fixtures/heldout/REPORT.md).
+- [Contributor instructions](AGENTS.md) for build constraints and verification
+- [Wire contract](docs/CONTRACT.md) for reports, worker messages, and storage
+- [Rule authoring](docs/RULES.md) and [fixtures](fixtures/README.md) for detection changes
+- [Design decisions](docs/DECISIONS.md) and [backlog](docs/BACKLOG.md) for trade-offs and open work
