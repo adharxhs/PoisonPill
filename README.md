@@ -40,7 +40,8 @@ Node alone; Rust is needed only to change detection logic.
 
 ## What it deliberately does not do
 
-In-page highlighting, jump-to-clause, and a browsable scan history. Complete
+In-page highlighting and a browsable scan history. Jump to clause scrolls to
+a unique source match in the active page. Complete
 scans can compare visible text and findings with a saved SHA-256 baseline.
 The popup displays the last report and can prepare an editable arbitration
 opt-out draft when it has the source wording. See [`docs/BACKLOG.md`](docs/BACKLOG.md).

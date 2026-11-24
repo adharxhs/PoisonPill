@@ -57,15 +57,15 @@ Prerequisites: `wasm-pack` (`cargo install wasm-pack`), the `wasm32-unknown-unkn
 - **The Wasm contract is snake_case JSON.** The Rust source of truth is `engine/src/model.rs`; `extension/src/types.ts` mirrors it exactly. `ClauseFinding` carries `category`, `label`, `rule_id`, `raw_text`, `modality`, `severity`, `start_offset`, `end_offset`, `opt_out_available`, `opt_out_target`, `inversion`, `reason`. Offsets are UTF-8 byte offsets into the exact input. `opt_out_target` is omitted when absent. See `docs/CONTRACT.md`.
 - **Analysis runs off the page's main thread.** All parsing goes through `worker.js`, the extension's MV3 background service worker; the content script sends text with `chrome.runtime.sendMessage` and stores the response. A content script cannot construct a `Worker` from a `chrome-extension://` URL (cross-origin `SecurityError`), so do not reintroduce `new Worker` there.
 - **`wasm-unsafe-eval` stays in the CSP.** Removing it breaks Wasm instantiation; widen nothing else.
-- **The content script writes nothing to the page.** No badges, highlights, shields, jump-to-clause or theming. The popup renders the stored report in its own document only. Those other features are product work layered on the contract, not part of this base.
+- **Keep the page DOM read-only.** The popup renders the stored report in its own document. Jump to clause scrolls a rendered element containing a unique exact source match.
 - **Input work is bounded.** The engine analyses at most 512 KiB, cuts on a UTF-8 boundary, and sets `truncated`.
 - **Goldens never auto-update.** Tests compare; only `make goldens` writes. Held-out documents are run at the Wasm milestone and are never tuned. The one re-run was a serialization-only fix (`-0.0` → `0.0`); the recorded diff is the artifact digest and those values, with no finding changes.
 
 ## Conventions
 
 - Rust: edition 2021, `#![deny(unsafe_code)]` unless a comment justifies it, no panics on user text (`unwrap` only on serialisation of owned structs).
-- Severity weights come from `RuleSpec.weight` in `rules.rs` and follow the spec table (arbitration `5.0` … surveillance `3.0`). Scores are normalised into `P_I ∈ [0, 100]` at the document level, never per clause. Only Forced Arbitration is authored; the other four categories are empty slots. See `docs/RULES.md`.
-- An opt-out clause needs an action and a window in the same sentence. A finding uses its own opt-out clause, else one unambiguous neighbour within 3 sentences in the same block (`optout::associate`; see `docs/CONTRACT.md`). `optout.rs` owns address extraction and association; TypeScript only displays the result and never generates mail.
+- Category authoring and weights follow `docs/RULES.md`. Scores are normalized to `P_I ∈ [0, 100]` at the document level.
+- Opt-out evidence requires an action and a window in one sentence. See `docs/CONTRACT.md` before changing association or the wire contract. Rust owns extraction and association. The popup may display or copy a local draft.
 - Keep `engine` free of Chrome APIs so it stays testable with plain `cargo test`.
 - TypeScript: strict mode, no `any` at the worker boundary, explicit `MessageEvent` types.
 
@@ -79,4 +79,4 @@ Prerequisites: `wasm-pack` (`cargo install wasm-pack`), the `wasm32-unknown-unkn
 - Chrome loads `worker.js` as a classic service worker (no `"type": "module"`), so `importScripts('engine.js')` must stay at top level; content/popup scripts are classic scripts. `tsconfig.json` is typecheck-only (`noEmit`); esbuild emits IIFE bundles. Never emit ES modules or CommonJS `exports` references for these entry points.
 - The executable entry points are `extension/src/content.ts`, `worker.ts`, and `popup.ts`; `types.ts` is type-only and is not bundled.
 - The spec's `$P_I$` weighting uses per-category `w_k`; the taxonomy table is authoritative when numbers disagree.
-- SHA-256 tree-diff/audit memory is not implemented in this base. If added later, store digests and offsets under `chrome.storage.local`, not full contract text.
+- Scan comparison stores bounded SHA-256 baselines under `chrome.storage.local`. Keep historical clause and agreement text out of the comparison store.

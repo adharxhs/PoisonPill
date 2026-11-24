@@ -68,10 +68,9 @@ correct; the tag promises the mechanism and one authored category, not coverage.
 
 ## Product
 
-11. **In-page annotations.** Highlighting, severity badges, a shield indicator,
-    and jump-to-clause. This is the first product layer. It needs an
-    offset-to-DOM mapping that survives page mutation, and it must never
-    re-classify text in TypeScript.
+11. **In-page annotations.** The popup can jump to the smallest rendered
+    element containing a unique exact source match. Highlighting, severity
+    badges, and a mapping for ambiguous or changed quotes remain open.
 
 12. **Opt-out drafting.** The popup can prepare and copy an editable draft
     from a finding with linked opt-out evidence. A direct mail action remains

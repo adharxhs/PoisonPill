@@ -7,7 +7,7 @@
 import { gsap } from 'gsap';
 import { buildPdf } from './report';
 
-import type { ClauseFinding, PageScanResponse, ScanRecord } from './types';
+import type { ClauseFinding, JumpToClauseRequest, JumpToClauseResponse, PageScanResponse, ScanRecord } from './types';
 
 /** Same colours, evenly spaced, as the gauge's `#risk` gradient in popup.html. */
 const RISK_STOPS = ['#22c55e', '#eab308', '#f97316', '#ef4444', '#be123c'];
@@ -167,6 +167,35 @@ function optOutDraft(finding: ClauseFinding): HTMLDetailsElement {
   return draft;
 }
 
+async function activeTabId(): Promise<number> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined) throw new Error('There is no active page.');
+  return tab.id;
+}
+
+function jumpButton(finding: ClauseFinding): HTMLButtonElement {
+  const button = el('button', 'jump', 'Jump to clause');
+  button.type = 'button';
+  button.addEventListener('click', async () => {
+    const record = currentRecord;
+    if (!record) return;
+    button.disabled = true;
+    try {
+      const result = await chrome.tabs.sendMessage<JumpToClauseRequest, JumpToClauseResponse>(
+        await activeTabId(), { type: 'JUMP_TO_CLAUSE', url: record.url, text: finding.raw_text },
+        { frameId: 0 },
+      );
+      if (result.status === 'error') throw new Error(result.message);
+      status('Moved to the clause.');
+    } catch (error: unknown) {
+      status(error instanceof Error ? error.message : 'The clause could not be located.');
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
 function renderFinding(finding: ClauseFinding): HTMLLIElement {
   const item = el('li', 'finding');
 
@@ -194,7 +223,7 @@ function renderFinding(finding: ClauseFinding): HTMLLIElement {
   }
   meta.append(why);
 
-  item.append(quote, meta);
+  item.append(quote, meta, jumpButton(finding));
   if (finding.category === 'forced_arbitration' && finding.opt_out_source) {
     item.append(optOutDraft(finding));
   }
@@ -382,10 +411,8 @@ refreshButton?.addEventListener('click', async () => {
   if (downloadButton) downloadButton.disabled = true;
   status('Scanning the current page…');
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === undefined) throw new Error('There is no active page to scan.');
     const result = await chrome.tabs.sendMessage<string, PageScanResponse>(
-      tab.id, 'REFRESH_PAGE_REPORT', { frameId: 0 },
+      await activeTabId(), 'REFRESH_PAGE_REPORT', { frameId: 0 },
     ).catch(() => {
       throw new Error('This page cannot receive a scan. Reopen it if the extension was just updated.');
     });

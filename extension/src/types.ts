@@ -96,3 +96,20 @@ export type WorkerResponse = AnalysisResult | AnalysisError;
 export type PageScanResponse =
   | { status: 'ok'; record: ScanRecord }
   | { status: 'error'; message: string };
+
+export interface JumpToClauseRequest {
+  type: 'JUMP_TO_CLAUSE';
+  url: string;
+  text: string;
+}
+
+export type JumpToClauseResponse =
+  | { status: 'ok' }
+  | { status: 'error'; message: string };
+
+export function isJumpToClauseRequest(value: unknown): value is JumpToClauseRequest {
+  return typeof value === 'object' && value !== null &&
+    'type' in value && value.type === 'JUMP_TO_CLAUSE' &&
+    'url' in value && typeof value.url === 'string' &&
+    'text' in value && typeof value.text === 'string';
+}

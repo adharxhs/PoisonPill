@@ -142,5 +142,6 @@ The popup shows the last report, supports manual refresh, exports a local PDF,
 and can draft an arbitration opt-out. Complete scans can compare against a
 previous local SHA-256 fingerprint for the same page. Comparison reports exact
 visible-text changes and counts changed findings. Navigation or other unrelated
-page text can change the fingerprint. Historical document text, in-page
-highlights, and automatic rescans are outside this implementation.
+page text can change the fingerprint. Jump to clause works with a unique exact match in a rendered page section.
+Repeated or changed text may require a fresh scan or a manual search.
+Historical document text, in-page highlights, and automatic rescans remain open.

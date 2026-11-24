@@ -279,13 +279,13 @@
         text-align: center;
       }
       .actions { display: flex; gap: 8px; margin-bottom: 8px; }
-      .actions button, .draft button {
+      .actions button, .draft button, .jump {
         flex: 1; padding: 8px; color: var(--text); background: var(--quote-bg);
         border: 1px solid currentColor; border-radius: 8px; font: inherit; cursor: pointer;
       }
       .actions button:disabled { opacity: 0.55; cursor: default; }
       #action-status { font-size: 12px; }
-      .draft { margin-top: 8px; }
+      .draft, .jump { margin-top: 8px; }
       .draft textarea {
         width: 100%; margin: 6px 0; padding: 6px; resize: vertical; font: inherit;
         color: var(--text); background: var(--quote-bg); border: 1px solid currentColor;
