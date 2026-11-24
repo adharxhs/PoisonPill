@@ -4,6 +4,8 @@
 //! All arithmetic is f64 internally and rounded to two decimals before it is
 //! cast to the f32 wire type, so native and Wasm builds format identically.
 
+use std::collections::HashSet;
+
 use crate::lexicon;
 use crate::model::ClauseFinding;
 use crate::rules::find_phrase;
@@ -49,8 +51,18 @@ pub fn finding_contribution(finding: &ClauseFinding) -> f64 {
 pub fn poison_index(findings: &[ClauseFinding]) -> f32 {
     // Fold from an explicit `0.0` instead of `sum()`: the float `Sum` seed is
     // `-0.0`, which an empty report would serialise as `poison_index:-0.0`.
+    // The report may explain two rights waived in a single sentence.
+    // Score its category once, in the same order as the findings.
+    let mut scored = HashSet::new();
     let total: f64 = findings
         .iter()
+        .filter(|finding| {
+            scored.insert((
+                finding.start_offset,
+                finding.end_offset,
+                finding.category.as_str(),
+            ))
+        })
         .map(finding_contribution)
         .fold(0.0, |sum, contribution| sum + contribution);
     let clamped = total.clamp(0.0, 100.0);
@@ -123,7 +135,14 @@ mod tests {
     #[test]
     fn document_score_is_clamped() {
         let clause = finding(5.0, "you waive class actions", false);
-        let many = vec![clause; 40];
+        let many: Vec<_> = (0..40)
+            .map(|index| {
+                let mut finding = clause.clone();
+                finding.start_offset = index * finding.raw_text.len();
+                finding.end_offset = finding.start_offset + finding.raw_text.len();
+                finding
+            })
+            .collect();
         assert_eq!(poison_index(&many), 100.0);
     }
 

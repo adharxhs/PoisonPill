@@ -34,7 +34,8 @@ keeping it in one reviewable file is cheaper than code generation.
 
 ## 2. One finding per category per clause, sorted by offset
 
-**Status:** accepted (commit `72ccb49`).
+**Status:** accepted at the base (commit `72ccb49`). Class-action and jury
+waivers can now appear together while the score counts their category once.
 
 **Context.** A single sentence can mention a class action, a jury trial, and
 mandatory arbitration. Emitting every matching rule would let one clause dominate

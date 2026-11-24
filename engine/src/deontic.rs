@@ -10,7 +10,10 @@ use crate::exceptions::classify;
 use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SourceExcerpt, SCHEMA_VERSION,
 };
-use crate::optout::{associate_with_source, inspect as inspect_opt_out, Association};
+use crate::optout::{
+    associate_with_source, inspect as inspect_opt_out, Association, ClauseOptOut,
+    ASSOCIATION_WINDOW,
+};
 use crate::rules::{RuleMatch, RuleRegistry, ARBITRATION_CATEGORY};
 use crate::scoring::poison_index;
 use crate::tokenizer::{sentences, Sentence};
@@ -93,7 +96,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
 
     for (index, sentence) in clauses.iter().enumerate() {
         let clause = sentence.text;
-        let mut emitted_categories: Vec<&'static str> = Vec::new();
+        let mut emitted_rules: Vec<(&str, &str)> = Vec::new();
 
         for rule_match in registry.matches(clause) {
             let inversion = classify(clause, rule_match.inversion_sensitive, &rule_match.spans);
@@ -101,24 +104,39 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 continue;
             }
 
-            // One finding per category per clause, selected by registry order.
-            if emitted_categories.contains(&rule_match.category_id) {
+            // Jury and class waivers describe separate rights. Subsuming
+            // court-access and duplicate class-action matches still collapse.
+            if emitted_rules.iter().any(|&(category, rule)| {
+                category == rule_match.category_id && !distinct_waivers(rule, rule_match.rule_id)
+            }) {
                 continue;
             }
-            emitted_categories.push(rule_match.category_id);
+            emitted_rules.push((rule_match.category_id, rule_match.rule_id));
 
             // The existing association heuristics resolve dispute opt-outs.
-            let (association, opt_out_index) = if rule_match.category_id == ARBITRATION_CATEGORY {
-                let facts = opt_out_facts.get_or_insert_with(|| {
-                    clauses
-                        .iter()
-                        .map(|sentence| inspect_opt_out(sentence.text))
-                        .collect::<Vec<_>>()
-                });
-                associate_with_source(facts, &blocks, index)
-            } else {
-                (Association::None, None)
-            };
+            let (association, opt_out_index, opt_out_heading) =
+                if rule_match.category_id == ARBITRATION_CATEGORY {
+                    let facts = opt_out_facts.get_or_insert_with(|| {
+                        clauses
+                            .iter()
+                            .map(|sentence| inspect_opt_out(sentence.text))
+                            .collect::<Vec<_>>()
+                    });
+                    let (association, source) = associate_with_source(facts, &blocks, index);
+                    if let Some(section) = explicit_opt_out_section(&clauses, &blocks, facts, index)
+                        .filter(|_| source.is_none())
+                    {
+                        (
+                            Association::Neighbour(facts[section].opt_out.clone()),
+                            Some(section),
+                            true,
+                        )
+                    } else {
+                        (association, source, false)
+                    }
+                } else {
+                    (Association::None, None, false)
+                };
             let opt_out = association.opt_out();
             findings.push(ClauseFinding {
                 category: rule_match.category_id.to_string(),
@@ -132,7 +150,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 opt_out_available: opt_out.available,
                 opt_out_target: opt_out.target,
                 inversion,
-                reason: reason_for(&rule_match, inversion, &association),
+                reason: reason_for(&rule_match, inversion, &association, opt_out_heading),
                 evidence: rule_match
                     .spans
                     .iter()
@@ -152,6 +170,51 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
         findings,
         truncated,
     }
+}
+
+/// Only a directly following, explicitly arbitration-specific heading can
+/// bridge a block boundary. Preserve existing ambiguity handling in the block.
+fn explicit_opt_out_section(
+    clauses: &[Sentence<'_>],
+    blocks: &[usize],
+    facts: &[ClauseOptOut],
+    index: usize,
+) -> Option<usize> {
+    let heading = index + 1;
+    let source = index + 2;
+    let heading_text = clauses.get(heading)?.text.trim_end_matches(':');
+    let source_fact = facts.get(source)?;
+    if blocks[index] == blocks[heading]
+        || ![
+            "arbitration opt-out",
+            "arbitration opt out",
+            "opt out of arbitration",
+        ]
+        .iter()
+        .any(|label| heading_text.eq_ignore_ascii_case(label))
+        || !source_fact.opt_out.available
+        || source_fact.foreign_subject
+    {
+        return None;
+    }
+    let low = index.saturating_sub(ASSOCIATION_WINDOW);
+    let has_candidate = (low..index).any(|other| {
+        blocks[other] == blocks[index]
+            && facts[other].opt_out.available
+            && !facts[other].foreign_subject
+    });
+    (!has_candidate).then_some(source)
+}
+
+fn distinct_waivers(left: &str, right: &str) -> bool {
+    const JURY: &str = "forced_arbitration.jury_trial_waiver";
+    fn class_waiver(rule: &str) -> bool {
+        matches!(
+            rule,
+            "forced_arbitration.class_action_waiver" | "forced_arbitration.class_action_bar"
+        )
+    }
+    (left == JURY && class_waiver(right)) || (right == JURY && class_waiver(left))
 }
 
 fn excerpt(input: &str, start_offset: usize, end_offset: usize) -> SourceExcerpt {
@@ -214,8 +277,12 @@ fn reason_for(
     rule_match: &RuleMatch,
     inversion: InversionShape,
     association: &Association,
+    opt_out_heading: bool,
 ) -> String {
     let base = base_reason(rule_match, inversion);
+    if opt_out_heading {
+        return format!("{base}; opt-out stated under the following arbitration opt-out heading");
+    }
     match association {
         Association::Neighbour(_) => {
             format!("{base}; opt-out stated in a neighbouring clause of the same block")
@@ -251,6 +318,24 @@ mod tests {
     use super::*;
     use crate::model::Modality;
     use crate::rules::{Predicate, RuleRegistry, RuleSpec};
+
+    #[test]
+    fn explicit_arbitration_heading_bridges_blocks() {
+        let text = "Disputes shall be resolved by binding arbitration.\n\nArbitration opt-out:\nYou may opt out within 30 days by emailing arb@example.com.";
+        let findings = analyze(text);
+        let finding = &findings[0];
+        assert!(finding.reason.contains("arbitration opt-out heading"));
+        assert_eq!(finding.opt_out_target.as_deref(), Some("arb@example.com"));
+        assert!(finding
+            .opt_out_source
+            .as_ref()
+            .unwrap()
+            .text
+            .starts_with("You may opt out"));
+
+        let unrelated = text.replace("Arbitration opt-out:", "Email preferences:");
+        assert!(!analyze(&unrelated)[0].opt_out_available);
+    }
 
     #[test]
     fn unilateral_modification_has_its_own_evidence_and_no_arbitration_opt_out() {
@@ -355,11 +440,22 @@ mod tests {
     }
 
     #[test]
-    fn poisoned_category_is_deduped_per_clause() {
+    fn distinct_waivers_share_one_score_contribution() {
         let doc = "You waive your right to a jury trial and to bring a class action in court.";
-        let findings = analyze(doc);
-        assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].category, "forced_arbitration");
+        let report = analyze_with(&RuleRegistry::builtin(), doc);
+        let rule_ids: Vec<_> = report
+            .findings
+            .iter()
+            .map(|finding| finding.rule_id.as_str())
+            .collect();
+        assert_eq!(
+            rule_ids,
+            [
+                "forced_arbitration.class_action_waiver",
+                "forced_arbitration.jury_trial_waiver",
+            ]
+        );
+        assert_eq!(report.poison_index, 5.0);
     }
 
     #[test]
@@ -380,7 +476,14 @@ mod tests {
             evidence: vec![],
             opt_out_source: None,
         };
-        let many = vec![finding; 40];
+        let many: Vec<_> = (0..40)
+            .map(|index| {
+                let mut clause = finding.clone();
+                clause.start_offset = index * clause.raw_text.len();
+                clause.end_offset = clause.start_offset + clause.raw_text.len();
+                clause
+            })
+            .collect();
         assert_eq!(poison_index(&many), 100.0);
     }
 
