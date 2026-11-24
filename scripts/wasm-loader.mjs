@@ -17,7 +17,7 @@ export const paths = {
   wasm: join(projectRoot, 'extension/public/engine.wasm'),
 };
 
-/** @returns {Promise<{ analyze: (text: string) => string, wasmBytes: Buffer }>} */
+/** @returns {Promise<{ analyze: (text: string) => string, review: (text: string) => string, wasmBytes: Buffer }>} */
 export async function loadShippedEngine() {
   const glue = readFileSync(paths.glue, 'utf8');
   const wasmBytes = readFileSync(paths.wasm);
@@ -44,6 +44,7 @@ export async function loadShippedEngine() {
 
   return {
     analyze: (text) => engine.analyzeJson(text),
+    review: (text) => engine.analyzeReviewJson(text),
     wasmBytes,
   };
 }

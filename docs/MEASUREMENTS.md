@@ -157,3 +157,63 @@ quotes them, so this is an acceptance check, not a fresh held-out measurement.
 
 Every other document's findings are unchanged. Documents with an associated
 opt-out drop to `P_I = 1.0` because `τ = 0.1` applies.
+
+## Provider-separated ToS-100 review experiment
+
+Sources: [ToS-100 course split](https://doi.org/10.5281/zenodo.22691656),
+[Ruggeri et al.](https://doi.org/10.1007/s10506-021-09288-2), and
+[Lippi et al.](https://doi.org/10.1007/s10506-019-09243-2).
+
+The benchmark uses four ToS-100 labels with approximately corresponding
+PoisonPill categories. The label scope is broader than several shipped rules.
+For example, ToS-100 labels unilateral changes generally, while the scored
+modification rule requires explicit permission to amend without notice. ToS-100
+arbitration labels also differ from PoisonPill's combined arbitration and waiver
+category. Counts therefore measure agreement with the corpus labels, rather than
+enforceability or accuracy across PoisonPill's full taxonomy.
+
+The training script groups related providers conservatively, gives priority to
+test groups, and removes exact normalized text overlap from earlier splits.
+The resulting split has 13,256 training clauses from 62 groups, 2,547
+validation clauses from eight groups, and 2,032 test clauses from ten groups.
+The held-out groups are Badoo, Foursquare, Grammarly, Pokémon, SyncMe, Twitch,
+Zara, eBay, eDreams, and Imgur. Group alias decisions are recorded in the script.
+Thresholds maximize F0.5 on validation output after quantization. Test labels
+are used only for reported counts.
+
+| Test label | Positives | Scored rule TP / FP | Additional review TP / FP | Combined recall (evaluation only) |
+| --- | ---: | ---: | ---: | ---: |
+| Arbitration | 11 | 5 / 12 | 1 / 1 | 54.5% |
+| Unilateral change | 33 | 0 / 0 | 15 / 4 | 45.5% |
+| Liability limitation | 47 | 0 / 0 | 17 / 3 | 36.2% |
+| Termination | 43 | 0 / 0 | 24 / 5 | 55.8% |
+
+Across these four label-by-clause comparisons the rules matched 5 positives.
+The review layer added 57 positives and 13 suggestions outside the benchmark
+labels. Among the 70 additional suggestions, observed precision was 81.4%.
+This is one historical, English-language corpus. The benchmark evaluates
+individual pre-tokenized clauses, so it does not estimate whole-document
+recall under the popup's 25-suggestion limit. The model remains opt-in and
+scored findings are produced by the rules alone.
+
+### Reproduce
+
+Download and unpack the three CSVs from the DOI into a local directory. Verify
+the published MD5 values (train `7cd0dc666b954db8db44db37c2be4c14`, validation
+`56437ce8a707d6fe3144330fcb33ecaf`, test
+`2c8f83c3c3ff3cf6a78f71e796c34942`). The extension bundles integer coefficients
+and thresholds only. The benchmark CSVs stay outside the repository.
+
+```sh
+OPENBLAS_NUM_THREADS=1 python3 scripts/train-review-model.py /path/to/tos-100 --fit
+cargo build --release --manifest-path engine/Cargo.toml --bin evaluate
+OPENBLAS_NUM_THREADS=1 python3 scripts/train-review-model.py /path/to/tos-100 \
+  --evaluate engine/target/release/evaluate
+```
+
+Training uses NumPy, SciPy, and scikit-learn 1.9.0. Features are hashed word
+unigrams and bigrams and four-character n-grams, with 4,096 buckets and a
+1,024-byte normalized input limit per clause. Both the native evaluator and the
+Wasm extension use the same Rust inference code and the same 32,784-byte model.
+The committed model's SHA-256 is
+`1c0b0e14b6f8205767332a41a3d2e7d85439e0f0dda4bb588c8256a7284b09d6`.

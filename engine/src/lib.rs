@@ -11,6 +11,8 @@ pub mod exceptions;
 pub mod lexicon;
 pub mod model;
 pub mod optout;
+pub mod relations;
+pub mod review;
 pub mod rules;
 pub mod scoring;
 pub mod tokenizer;

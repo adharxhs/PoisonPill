@@ -7,6 +7,7 @@
 
 use crate::lexicon;
 use crate::model::Modality;
+use crate::relations::{self, Action, Actor, Condition, Force, Pattern};
 
 /// A predicate over one clause. Predicates are deliberately data-shaped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +16,7 @@ pub enum Predicate {
     AnyPhrase(&'static [&'static str]),
     /// Whole words with flexible whitespace and hyphenation.
     AnyTokenPhrase(&'static [&'static str]),
+    Relation(Pattern),
     /// True when every listed phrase occurs.
     AllPhrases(&'static [&'static str]),
     /// True when a left phrase and a right phrase occur within `window` words
@@ -160,6 +162,13 @@ impl Predicate {
                 earliest_phrase(clause, phrases, token_phrase_span)
             }
             Predicate::AllPhrases(phrases) => all_phrases(clause, phrases),
+            Predicate::Relation(pattern) => {
+                relations::find(clause, *pattern).map(|matched| PredicateHit {
+                    start: matched.action_span.0,
+                    end: matched.action_span.1.max(matched.condition_span.1),
+                    evidence: vec![matched.action_phrase, matched.condition_phrase],
+                })
+            }
             Predicate::Near { left, right } => nearest_pair(clause, left, right, window),
         }
     }
@@ -181,6 +190,9 @@ impl Predicate {
                     .map(|(start, _, len)| (start, start + len))
                     .collect()
             }
+            Predicate::Relation(pattern) => relations::find(clause, *pattern)
+                .map(|matched| vec![matched.action_span, matched.condition_span])
+                .unwrap_or_default(),
             Predicate::Near { .. } => self
                 .evaluate(clause, window)
                 .map(|hit| vec![(hit.start, hit.end)])
@@ -493,10 +505,12 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         label: "Unilateral Modification",
         modality: Modality::Permission,
         weight: 4.0,
-        required: &[
-            Predicate::AnyTokenPhrase(lexicon::PROVIDER_TERMS_MODIFICATION),
-            Predicate::AnyTokenPhrase(lexicon::WITHOUT_NOTICE),
-        ],
+        required: &[Predicate::Relation(Pattern {
+            actor: Actor::Provider,
+            force: Force::Permission,
+            action: Action::ModifyTerms,
+            condition: Condition::WithoutNotice,
+        })],
         optional: &[],
         prohibited: &[Predicate::AnyTokenPhrase(lexicon::MODIFICATION_GUARDS)],
         proximity_window: 20,
@@ -542,10 +556,12 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         label: "Advertising Data Disclosure",
         modality: Modality::Permission,
         weight: 3.0,
-        required: &[
-            Predicate::AnyTokenPhrase(lexicon::SHARE_USER_DATA),
-            Predicate::AnyTokenPhrase(lexicon::ADVERTISING_RECIPIENTS),
-        ],
+        required: &[Predicate::Relation(Pattern {
+            actor: Actor::Provider,
+            force: Force::Permission,
+            action: Action::DiscloseData,
+            condition: Condition::AdvertisingRecipient,
+        })],
         optional: &[],
         prohibited: &[Predicate::AnyTokenPhrase(lexicon::RESTRICTED_DISCLAIMERS)],
         proximity_window: 24,
@@ -574,7 +590,12 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         modality: Modality::Permission,
         weight: 4.0,
         required: &[
-            Predicate::AnyTokenPhrase(lexicon::IMMEDIATE_TERMINATION),
+            Predicate::Relation(Pattern {
+                actor: Actor::Provider,
+                force: Force::Permission,
+                action: Action::TerminateAccess,
+                condition: Condition::Immediate,
+            }),
             Predicate::AnyTokenPhrase(lexicon::CUSTOMER_NOTICE),
             Predicate::AnyTokenPhrase(lexicon::TERMINATION_NOTICE),
         ],

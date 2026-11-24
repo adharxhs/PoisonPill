@@ -45,6 +45,15 @@ impl LegalEngine {
         serde_wasm_bindgen::to_value(&report).unwrap_or(JsValue::NULL)
     }
 
+    /// One normal analysis plus optional suggestions, with no score changes.
+    #[wasm_bindgen(js_name = analyzeReviewJson)]
+    pub fn analyze_review_json(&self, raw_text: &str) -> String {
+        let report = analyze_with(&self.registry, raw_text);
+        let candidates = crate::review::candidates(raw_text, &report.findings);
+        serde_json::to_string(&(AnalyzeResponse::ok(report), candidates))
+            .unwrap_or_else(|_| "[]".to_owned())
+    }
+
     /// Canonical JSON form used by parity tests and the worker.
     #[wasm_bindgen(js_name = analyzeJson)]
     pub fn analyze_json(&self, raw_text: &str) -> String {
@@ -318,6 +327,28 @@ mod tests {
     use super::*;
     use crate::model::Modality;
     use crate::rules::{Predicate, RuleRegistry, RuleSpec};
+
+    #[test]
+    fn provider_permission_and_notice_belong_to_the_same_action() {
+        for text in [
+            "The provider may revise this agreement without giving you advance notice.",
+            "At any time, we may amend this agreement without first notifying you.",
+        ] {
+            let findings = analyze(text);
+            assert_eq!(findings.len(), 1, "{text}");
+            assert_eq!(findings[0].category, "unilateral_modification");
+        }
+
+        for text in [
+            "We may amend these terms after giving you notice, and we may remove optional features without notice.",
+            "You may revise this agreement without giving us notice.",
+            "We may not revise this agreement without giving you advance notice.",
+            "If you expressly consent, we may amend these terms without prior notice.",
+            "A sample clause says “we may amend these terms without prior notice”.",
+        ] {
+            assert!(analyze(text).is_empty(), "{text}");
+        }
+    }
 
     #[test]
     fn explicit_arbitration_heading_bridges_blocks() {

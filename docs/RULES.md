@@ -45,6 +45,7 @@ pub struct RuleSpec {
 pub enum Predicate {
     AnyPhrase(&'static [&'static str]),
     AnyTokenPhrase(&'static [&'static str]),
+    Relation(Pattern),
     AllPhrases(&'static [&'static str]),
     Near { left: &'static [&'static str], right: &'static [&'static str] },
 }
@@ -54,6 +55,10 @@ pub enum Predicate {
   `AnyTokenPhrase` requires whole words, accepts whitespace and hyphen variants
   between them, and retains byte spans into the original clause. The sentence
   splitter still treats explicit line breaks as clause boundaries.
+- `Relation` binds an explicit actor, deontic force, action, object, and nearby
+  qualifier. It keeps separate byte spans for the matched action and qualifier.
+  The amendment, advertising disclosure, and immediate provider termination
+  rules use it. Unsupported grammatical forms fall through.
 - `AnyPhrase` returns the **earliest** listed phrase. That phrase becomes
   explainability evidence.
 - `AllPhrases` requires every phrase and reports all of them.

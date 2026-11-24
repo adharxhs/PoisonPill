@@ -194,29 +194,6 @@ pub const COMPLIANCE_GUARDS: &[&str] = &[
 pub const ARBITRATION_AMPLIFIERS: &[&str] =
     &["plaintiff", "class member", "representative", "collective"];
 
-/// Provider permission immediately tied to amending the agreement.
-pub const PROVIDER_TERMS_MODIFICATION: &[&str] = &[
-    "we may amend these terms",
-    "we may change these terms",
-    "we may modify these terms",
-    "we may update these terms",
-    "we reserve the right to amend these terms",
-    "we reserve the right to change these terms",
-    "we reserve the right to modify these terms",
-    "the company may change these terms",
-    "the provider may amend this agreement",
-    "we may amend this agreement",
-];
-
-/// Explicit absence of notice. Silence about notice is insufficient evidence.
-pub const WITHOUT_NOTICE: &[&str] = &[
-    "without notice",
-    "without prior notice",
-    "without advance notice",
-    "without notifying you",
-    "without notice to you",
-];
-
 /// Explicit conditions incompatible with an unconditional amendment right.
 pub const MODIFICATION_GUARDS: &[&str] = &[
     "only with your consent",
@@ -224,6 +201,9 @@ pub const MODIFICATION_GUARDS: &[&str] = &[
     "with your prior written consent",
     "by mutual agreement",
     "if both parties agree",
+    "if you consent",
+    "if you expressly consent",
+    "if you give us permission",
     "we will give you prior notice",
     "we will provide advance notice",
     "may not change these terms",
@@ -275,20 +255,6 @@ pub const LIMITED_INDEMNITY: &[&str] = &[
     "only to the extent arising from your",
 ];
 
-pub const SHARE_USER_DATA: &[&str] = &[
-    "we may sell your personal information",
-    "we may sell your personal data",
-    "we may share your personal information",
-    "we may disclose your personal data",
-    "we may share your usage data",
-];
-pub const ADVERTISING_RECIPIENTS: &[&str] = &[
-    "to advertisers",
-    "with advertisers",
-    "to advertising partners",
-    "with advertising partners",
-    "for their own marketing purposes",
-];
 pub const RESTRICTED_DISCLAIMERS: &[&str] = &[
     "only with your consent",
     "only with your explicit consent",
@@ -311,11 +277,6 @@ pub const LIMITED_CAP_SCOPE: &[&str] = &[
     "for equitable relief only",
 ];
 
-pub const IMMEDIATE_TERMINATION: &[&str] = &[
-    "we may terminate your account immediately",
-    "we may immediately terminate your account",
-    "we may terminate this agreement immediately",
-];
 pub const CUSTOMER_NOTICE: &[&str] = &[
     "you must give us",
     "you must provide us with",

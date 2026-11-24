@@ -29,7 +29,7 @@ function casesFor(className) {
 }
 
 const cases = CLASSES.flatMap(casesFor);
-const { analyze, wasmBytes } = await loadShippedEngine();
+const { analyze, review, wasmBytes } = await loadShippedEngine();
 
 let failures = 0;
 for (const testCase of cases) {
@@ -60,6 +60,17 @@ const check = (condition, message) => {
     console.error(`FAIL boundary: ${message}`);
   }
 };
+
+const reviewText = 'Café: We reserve the right to make changes to these terms at any time by posting them here.';
+const [reviewReport, candidates] = JSON.parse(review(reviewText));
+check(JSON.stringify(reviewReport) === JSON.stringify(JSON.parse(analyze(reviewText))), 'review changed the scored report');
+check(candidates.some(({ category }) => category === 'unilateral_modification'), 'review missed the known model candidate');
+const original = Buffer.from(reviewText, 'utf8');
+check(
+  candidates.every(({ source }) =>
+    original.subarray(source.start_offset, source.end_offset).toString('utf8') === source.text),
+  'review source ranges do not match original UTF-8 text',
+);
 
 const clause = 'You waive any right to a class action. ';
 const oversize = clause.repeat(Math.ceil(MAX_INPUT_BYTES / clause.length) + 20);
