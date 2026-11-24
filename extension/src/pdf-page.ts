@@ -1,4 +1,4 @@
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions, VerbosityLevel } from 'pdfjs-dist';
 import { buildPdf, reportFilename } from './report';
 import type { AnalyzeRequest, ScanRecord, WorkerResponse } from './types';
 
@@ -12,6 +12,8 @@ async function extract(file: File): Promise<{ text: string; truncated: boolean }
   if (file.size > MAX_FILE_BYTES) throw new Error('Choose a PDF that is 20 MB or smaller.');
   const task = getDocument({
     data: new Uint8Array(await file.arrayBuffer()),
+    // Text-only scans can succeed with recoverable font-rendering warnings.
+    verbosity: VerbosityLevel.ERRORS,
     disableFontFace: true,
     useSystemFonts: false,
     useWorkerFetch: false,
