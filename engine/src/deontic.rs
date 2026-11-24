@@ -11,7 +11,7 @@ use crate::model::{
     AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
 };
 use crate::optout::{associate, inspect as inspect_opt_out, Association};
-use crate::rules::{RuleMatch, RuleRegistry};
+use crate::rules::{RuleMatch, RuleRegistry, ARBITRATION_CATEGORY};
 use crate::scoring::poison_index;
 use crate::tokenizer::{sentences, Sentence};
 
@@ -107,13 +107,18 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
             }
             emitted_categories.push(rule_match.category_id);
 
-            let facts = opt_out_facts.get_or_insert_with(|| {
-                clauses
-                    .iter()
-                    .map(|sentence| inspect_opt_out(sentence.text))
-                    .collect::<Vec<_>>()
-            });
-            let association = associate(facts, &blocks, index);
+            // The existing association heuristics resolve dispute opt-outs.
+            let association = if rule_match.category_id == ARBITRATION_CATEGORY {
+                let facts = opt_out_facts.get_or_insert_with(|| {
+                    clauses
+                        .iter()
+                        .map(|sentence| inspect_opt_out(sentence.text))
+                        .collect::<Vec<_>>()
+                });
+                associate(facts, &blocks, index)
+            } else {
+                Association::None
+            };
             let opt_out = association.opt_out();
             findings.push(ClauseFinding {
                 category: rule_match.category_id.to_string(),

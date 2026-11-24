@@ -194,6 +194,43 @@ pub const COMPLIANCE_GUARDS: &[&str] = &[
 pub const ARBITRATION_AMPLIFIERS: &[&str] =
     &["plaintiff", "class member", "representative", "collective"];
 
+/// Provider permission immediately tied to amending the agreement.
+pub const PROVIDER_TERMS_MODIFICATION: &[&str] = &[
+    "we may amend these terms",
+    "we may change these terms",
+    "we may modify these terms",
+    "we may update these terms",
+    "we reserve the right to amend these terms",
+    "we reserve the right to change these terms",
+    "we reserve the right to modify these terms",
+    "the company may change these terms",
+    "the provider may amend this agreement",
+    "we may amend this agreement",
+];
+
+/// Explicit absence of notice. Silence about notice is insufficient evidence.
+pub const WITHOUT_NOTICE: &[&str] = &[
+    "without notice",
+    "without prior notice",
+    "without advance notice",
+    "without notifying you",
+    "without notice to you",
+];
+
+/// Explicit conditions incompatible with an unconditional amendment right.
+pub const MODIFICATION_GUARDS: &[&str] = &[
+    "only with your consent",
+    "only with your written consent",
+    "with your prior written consent",
+    "by mutual agreement",
+    "if both parties agree",
+    "we will give you prior notice",
+    "we will provide advance notice",
+    "may not change these terms",
+    "may not amend these terms",
+    "does not mean we may",
+];
+
 /// Unilateral discretion markers. These raise `mu` in scoring.
 pub const UNILATERAL_DISCRETION: &[&str] = &[
     "sole discretion",

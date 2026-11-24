@@ -14,8 +14,10 @@ category requires editing `rules.rs` control flow, the design has failed.
 | `fixtures/golden/` | One canonical envelope per case, written only by `make goldens`. |
 | `engine/tests/rule_format.rs` | Proves a synthetic category can be registered at runtime as data. |
 
-Only `forced_arbitration` is authored today. The other four taxonomy categories
-are deliberately empty slots for the content engineer.
+The registry includes `forced_arbitration` and
+`unilateral_modification.without_notice`. The modification rule requires
+explicit provider permission to amend the terms and wording denying notice
+in the same clause.
 
 ## `RuleSpec`
 

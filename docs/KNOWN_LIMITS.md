@@ -10,8 +10,10 @@ Backlog items that would change these limits are in
 
 ### The lexicon decides recall
 
-Matching is ASCII-case-insensitive substring search over the phrase lists in
-`engine/src/lexicon.rs`. If a predatory clause is phrased with words that are not
+Matching uses ASCII-case-insensitive phrase lists in `engine/src/lexicon.rs`.
+Mandatory arbitration and no-notice modification use whole-word phrases
+with flexible whitespace and hyphenation. Other predicates can match
+substrings. If a predatory clause is phrased with words that are not
 in those lists, it does not fire. There is no stemming, no lemmatisation, and no
 semantic model.
 
@@ -20,7 +22,7 @@ Visible consequence at `v0.1.0-base`: `06-marketplace-terms.txt` said a dispute
 been added with voluntary-arbitration guards (decision 17), but the general
 point stands: any phrasing outside the lists is invisible.
 
-Because the match is substring-based, a phrase must be specific enough to
+When using substring predicates, a phrase must be specific enough to
 explain itself. Broad phrases such as `court` are only safe when paired with a
 waiver verb and a proximity window, and even then they can drift.
 
@@ -66,11 +68,13 @@ against regressions; it is not a precision/recall estimate. No labelled
 population of real contracts has been scored, so no accuracy percentage is
 quoted anywhere in these docs.
 
-### One category
+### Category coverage
 
-Only `forced_arbitration` is authored. Unilateral change, liability caps,
-surveillance/data cascades, and termination asymmetry have empty registry slots
-and no detection. Absence of a finding says nothing about those categories.
+The engine detects forced arbitration and related waivers, plus explicit
+provider permission to amend terms without notice. The modification rule
+requires both signals in one clause. Silence about notice, cross-clause
+conditions, and unfamiliar wording can escape detection. Liability caps,
+surveillance/data cascades, and termination asymmetry remain on the backlog.
 
 ## Opt-out
 

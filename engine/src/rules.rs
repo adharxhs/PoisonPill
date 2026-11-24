@@ -75,7 +75,7 @@ impl RuleRegistry {
         Self { rules }
     }
 
-    /// The shipped registry. Currently exactly one authored category.
+    /// The shipped registry. Includes all authored categories.
     pub fn builtin() -> Self {
         Self::new(BUILTIN_RULES.to_vec())
     }
@@ -404,11 +404,16 @@ const MANDATORY_ARBITRATION_GUARDS: &[Predicate] = &[
     Predicate::AnyTokenPhrase(lexicon::VOLUNTARY_ARBITRATION),
 ];
 
-/// The one reference category. Every field is data.
-pub const ARBITRATION_RULES: &[RuleSpec] = &[
+pub(crate) const ARBITRATION_CATEGORY: &str = "forced_arbitration";
+
+/// The arbitration subset of the shipped registry.
+pub const ARBITRATION_RULES: &[RuleSpec] = BUILTIN_RULES.split_at(5).0;
+
+/// Every shipped rule, in deterministic evaluation order.
+pub const BUILTIN_RULES: &[RuleSpec] = &[
     RuleSpec {
         rule_id: "forced_arbitration.class_action_waiver",
-        category_id: "forced_arbitration",
+        category_id: ARBITRATION_CATEGORY,
         label: "Forced Arbitration & Class Waiver",
         modality: Modality::Waiver,
         weight: 5.0,
@@ -423,7 +428,7 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
     },
     RuleSpec {
         rule_id: "forced_arbitration.jury_trial_waiver",
-        category_id: "forced_arbitration",
+        category_id: ARBITRATION_CATEGORY,
         label: "Forced Arbitration & Class Waiver",
         modality: Modality::Waiver,
         weight: 5.0,
@@ -438,7 +443,7 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
     },
     RuleSpec {
         rule_id: "forced_arbitration.court_access_waiver",
-        category_id: "forced_arbitration",
+        category_id: ARBITRATION_CATEGORY,
         label: "Forced Arbitration & Class Waiver",
         modality: Modality::Waiver,
         weight: 5.0,
@@ -453,7 +458,7 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
     },
     RuleSpec {
         rule_id: "forced_arbitration.mandatory_arbitration",
-        category_id: "forced_arbitration",
+        category_id: ARBITRATION_CATEGORY,
         label: "Forced Arbitration & Class Waiver",
         modality: Modality::Waiver,
         weight: 5.0,
@@ -468,7 +473,7 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
     },
     RuleSpec {
         rule_id: "forced_arbitration.class_action_bar",
-        category_id: "forced_arbitration",
+        category_id: ARBITRATION_CATEGORY,
         label: "Forced Arbitration & Class Waiver",
         modality: Modality::Prohibition,
         weight: 5.0,
@@ -482,10 +487,22 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
         proximity_window: 45,
         inversion_sensitive: false,
     },
+    RuleSpec {
+        rule_id: "unilateral_modification.without_notice",
+        category_id: "unilateral_modification",
+        label: "Unilateral Modification",
+        modality: Modality::Permission,
+        weight: 4.0,
+        required: &[
+            Predicate::AnyTokenPhrase(lexicon::PROVIDER_TERMS_MODIFICATION),
+            Predicate::AnyTokenPhrase(lexicon::WITHOUT_NOTICE),
+        ],
+        optional: &[],
+        prohibited: &[Predicate::AnyTokenPhrase(lexicon::MODIFICATION_GUARDS)],
+        proximity_window: 20,
+        inversion_sensitive: false,
+    },
 ];
-
-/// Every shipped rule. Add a category by appending its rules here.
-pub const BUILTIN_RULES: &[RuleSpec] = ARBITRATION_RULES;
 
 #[cfg(test)]
 mod tests {

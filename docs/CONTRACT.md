@@ -67,7 +67,10 @@ from its parts. Common obfuscation (`[at]`, `(at)`, ` at `, `[dot]`, `(dot)`,
 example.com` do not produce a target. The action and the window must appear in
 the same sentence; that sentence is the *opt-out clause*.
 
-A finding's opt-out is resolved in this order:
+Dispute opt-out association applies to forced-arbitration findings. Other
+categories report `opt_out_available: false` until the engine has a way to
+associate an opt-out with that category. An arbitration finding's opt-out is
+resolved in this order:
 
 1. If the finding's own clause is an opt-out clause, it is used.
 2. Otherwise, opt-out clauses within 3 sentences of the finding **and** in the
