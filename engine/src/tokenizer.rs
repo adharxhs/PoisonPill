@@ -41,13 +41,16 @@ pub fn sentences(text: &str) -> Vec<Sentence<'_>> {
         let byte = bytes[i];
 
         if byte == b'\n' || byte == b'\r' {
-            push(&mut out, text, start, i);
-            i += if byte == b'\r' && bytes.get(i + 1) == Some(&b'\n') {
+            let next = i + if byte == b'\r' && bytes.get(i + 1) == Some(&b'\n') {
                 2
             } else {
                 1
             };
-            start = i;
+            if !soft_wrap(&text[start..i], &text[next..]) {
+                push(&mut out, text, start, i);
+                start = next;
+            }
+            i = next;
             continue;
         }
 
@@ -96,6 +99,51 @@ pub fn sentences(text: &str) -> Vec<Sentence<'_>> {
 
     push(&mut out, text, start, bytes.len());
     out
+}
+
+/// Join a single rendered line break when nearby wording shows a continuation.
+/// Paragraph breaks, headings and list markers remain clause boundaries.
+fn soft_wrap(previous: &str, next: &str) -> bool {
+    let next = next.trim_start_matches([' ', '\t']);
+    if !next.starts_with(char::is_lowercase) {
+        return false;
+    }
+    let tail = previous.split_whitespace().next_back().unwrap_or("");
+    if [
+        "binding",
+        "mandatory",
+        "without",
+        "prior",
+        "written",
+        "amend",
+        "modify",
+        "give",
+        "resolve",
+        "by",
+        "to",
+        "of",
+        "the",
+        "these",
+    ]
+    .iter()
+    .any(|word| tail.eq_ignore_ascii_case(word))
+    {
+        return true;
+    }
+    !previous.trim_end().ends_with(['.', '?', '!', ':', ';'])
+        && previous.split_whitespace().take(4).count() == 4
+        && [
+            "except ",
+            "unless ",
+            "provided that ",
+            "without notice",
+            "without prior notice",
+            "without advance notice",
+            "without giving ",
+            "without first notifying ",
+        ]
+        .iter()
+        .any(|prefix| next.starts_with(prefix))
 }
 
 fn push<'a>(out: &mut Vec<Sentence<'a>>, text: &'a str, start: usize, end: usize) {

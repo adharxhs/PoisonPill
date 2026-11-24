@@ -14,7 +14,7 @@ use crate::optout::{
     associate_with_source, inspect as inspect_opt_out, Association, ClauseOptOut,
     ASSOCIATION_WINDOW,
 };
-use crate::rules::{RuleMatch, RuleRegistry, ARBITRATION_CATEGORY};
+use crate::rules::{Predicate, RuleMatch, RuleRegistry, ARBITRATION_CATEGORY};
 use crate::scoring::poison_index;
 use crate::tokenizer::{sentences, Sentence};
 
@@ -104,10 +104,31 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
     let mut opt_out_facts = None;
 
     for (index, sentence) in clauses.iter().enumerate() {
-        let clause = sentence.text;
         let mut emitted_rules: Vec<(&str, &str)> = Vec::new();
+        let next = clauses
+            .get(index + 1)
+            .filter(|_| blocks[index] == blocks[index + 1]);
+        let mut matches: Vec<_> = registry
+            .matches(sentence.text)
+            .into_iter()
+            .map(|matched| (matched, sentence.end))
+            .collect();
+        if !matches
+            .iter()
+            .any(|(matched, _)| matched.rule_id == TERMINATION_RULE)
+        {
+            if let Some((matched, end)) =
+                next.and_then(|next| paired_termination(registry, input, sentence, next))
+            {
+                matches.push((matched, end));
+            }
+        }
 
-        for rule_match in registry.matches(clause) {
+        for (rule_match, end) in matches {
+            if next.is_some_and(|next| explicit_restriction(registry, &rule_match, next.text)) {
+                continue;
+            }
+            let clause = &input[sentence.start..end];
             let inversion = classify(clause, rule_match.inversion_sensitive, &rule_match.spans);
             if inversion == InversionShape::Inverted {
                 continue;
@@ -155,7 +176,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 modality: rule_match.modality,
                 severity: rule_match.weight,
                 start_offset: sentence.start,
-                end_offset: sentence.end,
+                end_offset: end,
                 opt_out_available: opt_out.available,
                 opt_out_target: opt_out.target,
                 inversion,
@@ -179,6 +200,75 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
         findings,
         truncated,
     }
+}
+
+const TERMINATION_RULE: &str = "termination_asymmetry.immediate_provider_notice_for_user";
+
+fn paired_termination(
+    registry: &RuleRegistry,
+    input: &str,
+    current: &Sentence<'_>,
+    next: &Sentence<'_>,
+) -> Option<(RuleMatch, usize)> {
+    let text = next.text;
+    if text.len() > 280 {
+        return None;
+    }
+    let first = text.split_ascii_whitespace().next()?;
+    if !first.eq_ignore_ascii_case("to") && !first.eq_ignore_ascii_case("you") {
+        return None;
+    }
+    let lower = text.to_ascii_lowercase();
+    if ![
+        "to terminate your account, you must ",
+        "to terminate this agreement, you must ",
+        "to cancel your account, you must ",
+        "you may terminate only upon ",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix))
+    {
+        return None;
+    }
+    let rule = registry
+        .rules()
+        .iter()
+        .find(|rule| rule.rule_id == TERMINATION_RULE)?;
+    // The provider's immediate termination power must come from the first
+    // sentence; the explicitly named customer obligation supplies the second.
+    if !rule.required.iter().any(|predicate| {
+        matches!(predicate, Predicate::Relation(_)) && predicate.matches(current.text, 0)
+    }) {
+        return None;
+    }
+    rule.evaluate(&input[current.start..next.end])
+        .map(|matched| (matched, next.end))
+}
+
+fn explicit_restriction(registry: &RuleRegistry, matched: &RuleMatch, next: &str) -> bool {
+    if !matches!(
+        matched.rule_id,
+        TERMINATION_RULE | "unilateral_modification.without_notice"
+    ) || next.len() > 280
+    {
+        return false;
+    }
+    let lower = next.to_ascii_lowercase();
+    if !["this right applies only ", "this right is available only "]
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
+    {
+        return false;
+    }
+    registry
+        .rules()
+        .iter()
+        .find(|rule| rule.rule_id == matched.rule_id)
+        .is_some_and(|rule| {
+            rule.prohibited
+                .iter()
+                .any(|predicate| predicate.matches(next, rule.proximity_window))
+        })
 }
 
 /// Only a directly following, explicitly arbitration-specific heading can
@@ -327,6 +417,46 @@ mod tests {
     use super::*;
     use crate::model::Modality;
     use crate::rules::{Predicate, RuleRegistry, RuleSpec};
+
+    #[test]
+    fn detects_arbitration_across_a_soft_wrap() {
+        let text = "Disputes must be resolved by binding\r\narbitration.";
+        let findings = analyze(text);
+        let finding = &findings[0];
+        assert_eq!(finding.category, "forced_arbitration");
+        assert_eq!(finding.raw_text, text);
+        assert_eq!(&text[finding.start_offset..finding.end_offset], text);
+    }
+
+    #[test]
+    fn preserves_a_wrapped_notice_condition() {
+        let text = "We may amend these terms\nwithout prior notice.";
+        let findings = analyze(text);
+        assert_eq!(findings[0].category, "unilateral_modification");
+        assert_eq!(findings[0].raw_text, text);
+    }
+
+    #[test]
+    fn pairs_immediate_termination_with_explicit_customer_notice() {
+        let prefix = "We may terminate your account immediately.";
+        let text = format!(
+            "{prefix} To terminate your account, you must give us thirty days written notice."
+        );
+        let findings = analyze(&text);
+        assert_eq!(findings[0].category, "termination_asymmetry");
+        assert_eq!(findings[0].raw_text, text);
+        let unrelated =
+            format!("{prefix} To change your email, you must give us thirty days written notice.");
+        assert!(analyze(&unrelated).is_empty());
+        assert!(analyze(&text.replace(". To", ".\n\nTo")).is_empty());
+    }
+
+    #[test]
+    fn an_immediate_explicit_exception_blocks_the_finding() {
+        let text = "We may amend these terms without prior notice. This right applies only if you consent.";
+        assert!(analyze(text).is_empty());
+        assert_eq!(analyze(&text.replace(". This", ".\n\nThis")).len(), 1);
+    }
 
     #[test]
     fn provider_permission_and_notice_belong_to_the_same_action() {
