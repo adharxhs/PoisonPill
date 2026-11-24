@@ -278,6 +278,18 @@
         font-size: 11px;
         text-align: center;
       }
+      .actions { display: flex; gap: 8px; margin-bottom: 8px; }
+      .actions button, .draft button {
+        flex: 1; padding: 8px; color: var(--text); background: var(--quote-bg);
+        border: 1px solid currentColor; border-radius: 8px; font: inherit; cursor: pointer;
+      }
+      .actions button:disabled { opacity: 0.55; cursor: default; }
+      #action-status { font-size: 12px; }
+      .draft { margin-top: 8px; }
+      .draft textarea {
+        width: 100%; margin: 6px 0; padding: 6px; resize: vertical; font: inherit;
+        color: var(--text); background: var(--quote-bg); border: 1px solid currentColor;
+      }
     </style>
   </head>
   <body>
@@ -290,6 +302,11 @@
     </header>
 
     <main>
+      <div class="actions">
+        <button id="refresh" type="button">Refresh report</button>
+        <button id="download" type="button" disabled>Download PDF</button>
+      </div>
+      <p id="action-status" role="status" hidden></p>
       <section id="none" class="card empty" hidden>
         <div class="icon" aria-hidden="true">&#128269;</div>
         <h2>No legal page scanned yet</h2>
@@ -333,7 +350,7 @@
       <section id="empty" class="card empty" hidden>
         <div class="icon" aria-hidden="true">&#9989;</div>
         <h2>No predatory clauses found</h2>
-        <p>Nothing on this page matched forced arbitration, class-action or court-access waivers.</p>
+        <p>The scanned text produced no findings for the currently supported rules.</p>
       </section>
 
       <div id="report"></div>

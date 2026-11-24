@@ -9,6 +9,12 @@ export type InversionShape =
   | 'canceled'
   | 'compliance_then_carve_out';
 
+export interface SourceExcerpt {
+  start_offset: number;
+  end_offset: number;
+  text: string;
+}
+
 export interface ClauseFinding {
   category: string;
   label: string;
@@ -23,6 +29,8 @@ export interface ClauseFinding {
   opt_out_target?: string;
   inversion: InversionShape;
   reason: string;
+  evidence?: SourceExcerpt[];
+  opt_out_source?: SourceExcerpt;
 }
 
 export interface DocumentReport {
@@ -74,3 +82,7 @@ export interface AnalysisError {
 }
 
 export type WorkerResponse = AnalysisResult | AnalysisError;
+
+export type PageScanResponse =
+  | { status: 'ok'; record: ScanRecord }
+  | { status: 'error'; message: string };

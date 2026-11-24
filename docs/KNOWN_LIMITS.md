@@ -73,8 +73,10 @@ quoted anywhere in these docs.
 The engine detects forced arbitration and related waivers, plus explicit
 provider permission to amend terms without notice. The modification rule
 requires both signals in one clause. Silence about notice, cross-clause
-conditions, and unfamiliar wording can escape detection. Liability caps,
-surveillance/data cascades, and termination asymmetry remain on the backlog.
+conditions, and unfamiliar wording can escape detection. The additional
+categories each start with one explicit pattern. Split-sentence termination
+rights, indirect commercial IP grants, liability caps phrased as fixed amounts,
+and transfers without a named advertising purpose can escape detection.
 
 ## Opt-out
 
@@ -97,36 +99,28 @@ qualifies. The engine does not infer a window from context, a linked policy, or 
 jurisdiction's default. It also does not verify deliverability or ownership of an
 address.
 
-### Detection only
+### Opt-out drafting
 
-The engine reports that an opt-out exists and where to send it. It never drafts
-the notice, fills a template, or opens `mailto:`. Those are out of scope for the
-engine and are not built in the reference shell.
+The engine reports the supported opt-out action, source clause, and address when
+identified. The popup can prepare an editable draft and copy it locally. Verify
+the recipient, deadline and required delivery method against the agreement
+before using it.
 
 ## Input and runtime
 
-### The engine cap is 512 KiB; the shell caps lower and silently
+### Input caps
 
-The engine truncates at 524,288 bytes on a character boundary and sets
-`truncated`. The reference content script caps extracted text at 120,000 UTF-16
-code units *before* handing it over, so the engine never sees an oversize input
-and `truncated` stays `false` in normal browsing. Treat the shell's cutoff as
-silent: a huge page is under-reported without a flag in the stored record.
+The engine truncates at 524,288 bytes on a character boundary. The content script
+also caps extracted text at 120,000 UTF-16 code units without splitting a
+surrogate pair. The popup and PDF show when either limit truncates the scan.
 
 ### Extraction is shallow
 
-The content script reads `document.body.innerText`. It does not read shadow DOM,
-same-origin iframe bodies (the script runs with `all_frames: false`), canvas, or
-PDF viewer surfaces. A contract rendered inside a PDF or a cross-origin embed is
-not scanned. The page must also pass a cheap `looksLegal()` heuristic (legal-ish
-URL, a checkbox, or a terms/privacy link) and be at least 200 characters; other
-documents are skipped without a report.
-
-### Pages that mutate are not re-scanned
-
-Extraction happens once at `document_idle`. A single-page app that renders terms
-later, or a "load more" expansion, is not re-read. There is also no re-scan
-action in the popup.
+The content script reads `document.body.innerText`. Shadow DOM, embedded frames,
+canvas content, and PDF viewer text can be outside the scan. Automatic scans
+use a legal-page heuristic and a 200-character minimum. **Refresh report**
+scans visible text from the active page on demand, including short pages and
+in-place updates. Automatic rescans after page mutations remain open.
 
 ### Latency numbers are not a browser guarantee
 

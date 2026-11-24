@@ -5,8 +5,9 @@
 // are display-only; the engine defines no thresholds for `poison_index`.
 
 import { gsap } from 'gsap';
+import { buildPdf } from './report';
 
-import type { ClauseFinding, ScanRecord } from './types';
+import type { ClauseFinding, PageScanResponse, ScanRecord } from './types';
 
 /** Same colours, evenly spaced, as the gauge's `#risk` gradient in popup.html. */
 const RISK_STOPS = ['#22c55e', '#eab308', '#f97316', '#ef4444', '#be123c'];
@@ -28,7 +29,7 @@ const SEVERE: BandInfo = {
 };
 
 const BANDS: BandInfo[] = [
-  { band: 'none', below: Number.EPSILON, label: 'Clean', verdict: 'No predatory clauses were found.' },
+  { band: 'none', below: Number.EPSILON, label: 'No findings', verdict: 'The supported rules found no matching clauses in the scanned text.' },
   { band: 'low', below: 25, label: 'Low risk', verdict: 'A few clauses limit your legal options.' },
   { band: 'moderate', below: 50, label: 'Moderate risk', verdict: 'Some terms may materially affect your rights or obligations.' },
   { band: 'high', below: 75, label: 'High risk', verdict: 'Review the flagged terms and their potential impact.' },
@@ -41,13 +42,33 @@ const RULES: Record<string, { title: string; blurb: string }> = {
     title: 'Changes without notice',
     blurb: 'The terms say the provider may amend the agreement without notifying you in advance.',
   },
+  'intellectual_property.perpetual_commercial_license': {
+    title: 'Perpetual commercial content license',
+    blurb: 'The provider receives broad rights to commercially use or sublicense user content.',
+  },
+  'indemnification.provider_defense_costs': {
+    title: 'Provider indemnity and legal fees',
+    blurb: 'The terms place responsibility for claims and legal costs on the user.',
+  },
+  'surveillance.advertising_disclosure': {
+    title: 'Data disclosure to advertisers',
+    blurb: 'The terms allow disclosure of specified user data to advertising recipients.',
+  },
+  'liability_caps.provider_paid_fees': {
+    title: 'Provider liability limited to fees paid',
+    blurb: 'The terms may limit the amount the provider must pay for covered losses.',
+  },
+  'termination_asymmetry.immediate_provider_notice_for_user': {
+    title: 'Unequal termination notice',
+    blurb: 'The provider can terminate immediately while the user is required to give notice.',
+  },
   'forced_arbitration.mandatory_arbitration': {
     title: 'Mandatory arbitration',
-    blurb: 'Disputes go to a private arbitrator instead of a court.',
+    blurb: 'The terms say covered disputes must go to arbitration.',
   },
   'forced_arbitration.class_action_waiver': {
     title: 'Class action waiver',
-    blurb: 'You give up joining others in a group lawsuit.',
+    blurb: 'The wording seeks to restrict participation in a group lawsuit.',
   },
   'forced_arbitration.class_action_bar': {
     title: 'Individual claims only',
@@ -55,11 +76,11 @@ const RULES: Record<string, { title: string; blurb: string }> = {
   },
   'forced_arbitration.jury_trial_waiver': {
     title: 'Jury trial waiver',
-    blurb: 'You give up the right to have a jury decide your case.',
+    blurb: 'The wording seeks to waive a jury trial.',
   },
   'forced_arbitration.court_access_waiver': {
     title: 'Court access waiver',
-    blurb: 'You give up the right to take the company to court.',
+    blurb: 'The wording seeks to restrict bringing a claim in court.',
   },
 };
 
@@ -107,6 +128,45 @@ function hostOf(url: string): string {
   }
 }
 
+function optOutDraft(finding: ClauseFinding): HTMLDetailsElement {
+  const draft = el('details', 'draft');
+  const text = el('textarea');
+  text.setAttribute('aria-label', 'Editable arbitration opt-out draft');
+  text.rows = 8;
+  text.value = [
+    finding.opt_out_target ? `To: ${finding.opt_out_target}` : 'To: [recipient specified in the agreement]',
+    'Subject: Arbitration opt-out notice',
+    '',
+    'To whom it may concern,',
+    '',
+    'I am exercising the arbitration opt-out described in [agreement name and version].',
+    'Account reference: [reference required by the agreement]',
+    'Name: [full name]',
+    'Date accepted: [date, if required]',
+    '',
+    'Please confirm receipt of this notice.',
+  ].join('\n');
+  const copy = el('button', undefined, 'Copy draft');
+  copy.type = 'button';
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(text.value);
+      status('Opt-out draft copied.');
+    } catch {
+      text.focus();
+      text.select();
+      status('Copy the selected draft using your browser’s copy command.');
+    }
+  });
+  draft.append(
+    el('summary', undefined, 'Prepare an opt-out draft'),
+    el('p', undefined, 'Check the deadline, delivery method, recipient and required details against the version you accepted before sending.'),
+    text,
+    copy,
+  );
+  return draft;
+}
+
 function renderFinding(finding: ClauseFinding): HTMLLIElement {
   const item = el('li', 'finding');
 
@@ -129,9 +189,15 @@ function renderFinding(finding: ClauseFinding): HTMLLIElement {
 
   const why = el('details');
   why.append(el('summary', undefined, 'Why flagged'), el('p', undefined, finding.reason));
+  if (finding.opt_out_source && finding.opt_out_source.text !== finding.raw_text) {
+    why.append(el('p', undefined, 'Related opt-out wording'), el('p', undefined, finding.opt_out_source.text));
+  }
   meta.append(why);
 
   item.append(quote, meta);
+  if (finding.category === 'forced_arbitration' && finding.opt_out_source) {
+    item.append(optOutDraft(finding));
+  }
   return item;
 }
 
@@ -195,6 +261,8 @@ function formatIndex(index: number): string {
  * the risk pill and verdict follow as the sweep settles. Reduced motion jumps
  * straight to the end state.
  */
+let gaugeMedia: ReturnType<typeof gsap.matchMedia> | undefined;
+
 function animateScore(value: number, index: number): void {
   const fill = document.getElementById('gauge-fill');
   const knob = document.getElementById('gauge-knob');
@@ -215,8 +283,8 @@ function animateScore(value: number, index: number): void {
   gsap.set(knob, { rotation: 0, svgOrigin: '110 110' });
 
   // matchMedia only runs the handler when a condition matches, so list both.
-  const mm = gsap.matchMedia();
-  mm.add(
+  gaugeMedia = gsap.matchMedia();
+  gaugeMedia.add(
     {
       motion: '(prefers-reduced-motion: no-preference)',
       reduce: '(prefers-reduced-motion: reduce)',
@@ -239,12 +307,29 @@ function animateScore(value: number, index: number): void {
   );
 }
 
-async function load(): Promise<void> {
-  const stored = (await chrome.storage.local.get('last_scan')) as {
-    last_scan?: ScanRecord;
-  };
-  const record = stored.last_scan;
+let currentRecord: ScanRecord | undefined;
+let refreshed = false;
+const refreshButton = document.querySelector<HTMLButtonElement>('#refresh');
+const downloadButton = document.querySelector<HTMLButtonElement>('#download');
 
+function status(message: string): void {
+  const element = document.getElementById('action-status');
+  if (element) {
+    element.textContent = message;
+    element.hidden = !message;
+  }
+}
+
+function renderRecord(record?: ScanRecord): void {
+  gaugeMedia?.revert();
+  gaugeMedia = undefined;
+  currentRecord = record;
+  if (downloadButton) downloadButton.disabled = !record;
+  for (const id of ['none', 'summary', 'empty', 'truncated']) {
+    document.getElementById(id)?.setAttribute('hidden', '');
+  }
+  const container = document.getElementById('report');
+  container?.replaceChildren();
   if (!record) {
     show('none');
     return;
@@ -282,9 +367,46 @@ async function load(): Promise<void> {
     return;
   }
 
-  const container = document.getElementById('report');
   container?.append(...renderGroups(report.findings));
   container?.querySelectorAll<HTMLElement>('blockquote.clamped').forEach(makeExpandable);
 }
 
-void load();
+refreshButton?.addEventListener('click', async () => {
+  refreshButton.disabled = true;
+  if (downloadButton) downloadButton.disabled = true;
+  status('Scanning the current page…');
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id === undefined) throw new Error('There is no active page to scan.');
+    const result = await chrome.tabs.sendMessage<string, PageScanResponse>(
+      tab.id, 'REFRESH_PAGE_REPORT', { frameId: 0 },
+    ).catch(() => {
+      throw new Error('This page cannot receive a scan. Reopen it if the extension was just updated.');
+    });
+    if (result.status === 'error') throw new Error(result.message);
+    refreshed = true;
+    renderRecord(result.record);
+    status('Report refreshed.');
+  } catch (error: unknown) {
+    status(error instanceof Error ? error.message : 'The report could not be refreshed.');
+  } finally {
+    refreshButton.disabled = false;
+    if (downloadButton) downloadButton.disabled = !currentRecord;
+  }
+});
+
+downloadButton?.addEventListener('click', () => {
+  if (!currentRecord) return;
+  try {
+    const pdf = buildPdf(currentRecord, (finding) => RULES[finding.rule_id]?.blurb);
+    const day = currentRecord.scanned_at.slice(0, 10);
+    pdf.save(`poisonpill-report-${day}.pdf`);
+    status('PDF download started.');
+  } catch {
+    status('The PDF could not be generated. Refresh the report and try again.');
+  }
+});
+
+void chrome.storage.local.get('last_scan').then(({ last_scan }) => {
+  if (!refreshed && !refreshButton?.disabled) renderRecord(last_scan as ScanRecord | undefined);
+}).catch(() => status('The last report could not be loaded.'));

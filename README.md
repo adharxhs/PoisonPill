@@ -31,17 +31,18 @@ Node alone; Rust is needed only to change detection logic.
 ## What this base does
 
 - Splits contract text into offset-aware sentences and evaluates declarative
-  rules. One category is authored: Forced Arbitration & Class Waiver.
+  rules for arbitration and waivers, unilateral changes without notice, broad IP grants, indemnity, advertising data sharing, liability caps, and termination notice asymmetry.
 - Detects opt-out actions, windows, and addresses. A bare email is not an opt-out.
 - Returns a canonical JSON report with a document-level poison index and is
   byte-identical between native and Wasm builds.
-- Analyses at most 512 KiB per document and reports truncation.
+- Analyses bounded visible text and reports truncation at the page and engine limits.
+- Refresh report scans the active page on demand. Download PDF exports the displayed report locally with source wording and practical next steps.
 
 ## What it deliberately does not do
 
-Highlighting, badges, jump-to-clause, theming, opt-out mail generation, scan
-history, and SHA-256 tree-diff memory. The popup is a plain reference view of the
-last report. See [`docs/BACKLOG.md`](docs/BACKLOG.md).
+In-page highlighting, jump-to-clause, scan history, and SHA-256 tree-diff memory.
+The popup displays the last report and can prepare an editable arbitration
+opt-out draft when it has the source wording. See [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## Tests and fixtures
 

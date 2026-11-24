@@ -73,10 +73,9 @@ correct; the tag promises the mechanism and one authored category, not coverage.
     offset-to-DOM mapping that survives page mutation, and it must never
     re-classify text in TypeScript.
 
-12. **Opt-out drafting.** A local template that turns `opt_out_target` and
-    `opt_out_available` into a ready-to-send notice, plus a `mailto:`/copy
-    affordance. Must stay entirely local: no template fetch, no remote form, no
-    analytics on send. The engine keeps detection only.
+12. **Opt-out drafting.** The popup can prepare and copy an editable draft
+    from a finding with linked opt-out evidence. A direct mail action remains
+    optional product work.
 
 13. **Scan history and comparison.** More than one `last_scan`, with a diff view
     across versions of the same URL. Store digests and offsets, not full contract

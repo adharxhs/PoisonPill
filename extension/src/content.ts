@@ -1,58 +1,64 @@
-// Content script: extract page text, hand it to the engine's service worker,
-// store the report.
-//
-// This is the reference shell, not the product UI. It makes no DOM writes and
-// performs no classification; detection lives in Rust. Only the most recent
-// report is persisted, and nothing ever leaves the browser.
-
-import type { AnalyzeRequest, ScanRecord, WorkerResponse } from './types';
+// Extract visible text and send it to the extension worker. Detection runs in Rust.
+import type { AnalyzeRequest, PageScanResponse, ScanRecord, WorkerResponse } from './types';
 
 const LEGAL_URL = /(terms|privacy|eula|conditions|legal|tos|dpa|agreement)/i;
-// Keep the request comfortably below the engine's 512 KiB cap; 120k UTF-16
-// code units is at most ~480 KiB even for three-byte characters.
 const MAX_CHARS = 120_000;
-
-function store(response: WorkerResponse | undefined): void {
-  if (!response) {
-    console.warn('[PoisonPill] analysis failed: no response from the engine');
-    return;
-  }
-  if (response.type === 'ANALYSIS_ERROR') {
-    console.warn('[PoisonPill] analysis failed:', response.error);
-    return;
-  }
-
-  const record: ScanRecord = {
-    url: location.href,
-    scanned_at: new Date().toISOString(),
-    report: response.report,
-  };
-  void chrome.storage.local.set({ last_scan: record });
-}
+let scanSequence = 0;
 
 function looksLegal(): boolean {
   return (
     LEGAL_URL.test(location.href) ||
     document.querySelector('input[type="checkbox"]') !== null ||
-    document.querySelectorAll('a[href*="terms"], a[href*="privacy"]').length > 0
+    document.querySelector('a[href*="terms"], a[href*="privacy"]') !== null
   );
 }
 
-function scan(): void {
-  if (!looksLegal()) return;
+async function scan(minimumLength: number): Promise<ScanRecord> {
+  const visibleText = document.body?.innerText ?? '';
+  let text = visibleText.slice(0, MAX_CHARS);
+  // Avoid cutting a UTF-16 surrogate pair before passing text to Wasm.
+  if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+  if (text.trim().length < minimumLength) throw new Error('This page has too little visible text to scan.');
 
-  const text = document.body?.innerText.slice(0, MAX_CHARS) ?? '';
-  if (text.trim().length < 200) return;
-
+  const sequence = ++scanSequence;
+  const url = location.href;
   const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text };
-  chrome.runtime
-    .sendMessage<AnalyzeRequest, WorkerResponse>(request)
-    .then(store)
-    .catch((error: unknown) => console.warn('[PoisonPill] analysis failed:', error));
+  const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
+  if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
+  if (sequence !== scanSequence || location.href !== url) {
+    throw new Error('The page or scan changed. Refresh the report again.');
+  }
+
+  const record: ScanRecord = {
+    url,
+    scanned_at: new Date().toISOString(),
+    report: {
+      ...response.report,
+      truncated: response.report.truncated || text.length < visibleText.length,
+    },
+  };
+  await chrome.storage.local.set({ last_scan: record });
+  return record;
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', scan, { once: true });
-} else {
-  scan();
+chrome.runtime.onMessage.addListener(
+  (message: unknown, sender, respond: (response: PageScanResponse) => void) => {
+    if (sender.id !== chrome.runtime.id || sender.tab || message !== 'REFRESH_PAGE_REPORT') {
+      return false;
+    }
+    void scan(1).then(
+      (record) => respond({ status: 'ok', record }),
+      (error: unknown) => respond({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'The page could not be scanned.',
+      }),
+    );
+    return true;
+  },
+);
+
+if (looksLegal()) {
+  void scan(200).catch(() => {
+    // A manual refresh is available when automatic scanning skips the page.
+  });
 }
