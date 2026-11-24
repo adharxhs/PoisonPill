@@ -48,7 +48,12 @@ impl LegalEngine {
     /// One normal analysis plus optional suggestions, with no score changes.
     #[wasm_bindgen(js_name = analyzeReviewJson)]
     pub fn analyze_review_json(&self, raw_text: &str) -> String {
-        let report = analyze_with(&self.registry, raw_text);
+        self.analyze_review_json_for_site(raw_text, "")
+    }
+
+    #[wasm_bindgen(js_name = analyzeReviewJsonForSite)]
+    pub fn analyze_review_json_for_site(&self, raw_text: &str, site: &str) -> String {
+        let report = analyze_with_site(&self.registry, raw_text, site);
         let candidates = crate::review::candidates(raw_text, &report.findings);
         serde_json::to_string(&(AnalyzeResponse::ok(report), candidates))
             .unwrap_or_else(|_| "[]".to_owned())
@@ -57,7 +62,12 @@ impl LegalEngine {
     /// Canonical JSON form used by parity tests and the worker.
     #[wasm_bindgen(js_name = analyzeJson)]
     pub fn analyze_json(&self, raw_text: &str) -> String {
-        let outcome = AnalyzeResponse::ok(analyze_with(&self.registry, raw_text));
+        self.analyze_json_for_site(raw_text, "")
+    }
+
+    #[wasm_bindgen(js_name = analyzeJsonForSite)]
+    pub fn analyze_json_for_site(&self, raw_text: &str, site: &str) -> String {
+        let outcome = AnalyzeResponse::ok(analyze_with_site(&self.registry, raw_text, site));
         serde_json::to_string(&outcome).unwrap_or_else(|error| {
             serde_json::json!({
                 "status": "error",
@@ -93,6 +103,11 @@ pub fn analyze(raw_text: &str) -> Vec<ClauseFinding> {
 /// Analyse with an arbitrary registry. This is the function the guarantee test
 /// uses to prove that a synthetic category can be registered as data.
 pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
+    analyze_with_site(registry, raw_text, "")
+}
+
+/// Analyse with an optional site or provider label as actor evidence.
+pub fn analyze_with_site(registry: &RuleRegistry, raw_text: &str, site: &str) -> DocumentReport {
     let (input, truncated) = truncate_input(raw_text, MAX_INPUT_BYTES);
     let mut findings = Vec::new();
 
@@ -109,7 +124,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
             .get(index + 1)
             .filter(|_| blocks[index] == blocks[index + 1]);
         let mut matches: Vec<_> = registry
-            .matches(sentence.text)
+            .matches_for_site(sentence.text, site)
             .into_iter()
             .map(|matched| (matched, sentence.end))
             .collect();
@@ -124,6 +139,7 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
             }
         }
 
+        select_arbitration_matches(sentence.text, &mut matches);
         for (rule_match, end) in matches {
             if next.is_some_and(|next| explicit_restriction(registry, &rule_match, next.text)) {
                 continue;
@@ -134,10 +150,11 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 continue;
             }
 
-            // Jury and class waivers describe separate rights. Subsuming
-            // court-access and duplicate class-action matches still collapse.
+            // Independent dispute restrictions can share a source sentence.
+            // Scoring still counts this category once for the range.
             if emitted_rules.iter().any(|&(category, rule)| {
-                category == rule_match.category_id && !distinct_waivers(rule, rule_match.rule_id)
+                category == rule_match.category_id
+                    && !distinct_arbitration_restrictions(rule, rule_match.rule_id)
             }) {
                 continue;
             }
@@ -305,15 +322,42 @@ fn explicit_opt_out_section(
     (!has_candidate).then_some(source)
 }
 
-fn distinct_waivers(left: &str, right: &str) -> bool {
-    const JURY: &str = "forced_arbitration.jury_trial_waiver";
-    fn class_waiver(rule: &str) -> bool {
-        matches!(
-            rule,
-            "forced_arbitration.class_action_waiver" | "forced_arbitration.class_action_bar"
-        )
-    }
-    (left == JURY && class_waiver(right)) || (right == JURY && class_waiver(left))
+const ARBITRATION: &str = "forced_arbitration.mandatory_arbitration";
+const CLASS_BAR: &str = "forced_arbitration.class_action_bar";
+const CLASS_WAIVER: &str = "forced_arbitration.class_action_waiver";
+const COURT_WAIVER: &str = "forced_arbitration.court_access_waiver";
+const JURY_WAIVER: &str = "forced_arbitration.jury_trial_waiver";
+
+fn select_arbitration_matches(clause: &str, matches: &mut Vec<(RuleMatch, usize)>) {
+    let detected = |id| matches.iter().any(|(matched, _)| matched.rule_id == id);
+    let prefer_bar = detected(CLASS_BAR)
+        && detected(CLASS_WAIVER)
+        && Predicate::AnyPhrase(crate::lexicon::CLASS_ACTION_BARS)
+            .evaluate(clause, 0)
+            .zip(Predicate::AnyPhrase(crate::lexicon::CLASS_ACTIONS).evaluate(clause, 0))
+            .zip(Predicate::AnyPhrase(crate::lexicon::WAIVER_VERBS).evaluate(clause, 0))
+            .is_some_and(|((bar, class), waiver)| {
+                bar.start <= class.start && class.end <= waiver.start
+            });
+    // "Court" may occur in the venue comparison or even in the name of the
+    // class claim. Keep the generic court rule as a fallback for such overlaps.
+    let specific = [ARBITRATION, CLASS_BAR, CLASS_WAIVER, JURY_WAIVER]
+        .into_iter()
+        .any(detected);
+    matches.retain(|(matched, _)| {
+        !(specific && matched.rule_id == COURT_WAIVER
+            || prefer_bar && matched.rule_id == CLASS_WAIVER)
+    });
+}
+
+fn distinct_arbitration_restrictions(left: &str, right: &str) -> bool {
+    let kind = |rule| match rule {
+        ARBITRATION => Some(0),
+        CLASS_BAR | CLASS_WAIVER => Some(1),
+        JURY_WAIVER => Some(2),
+        _ => None,
+    };
+    matches!((kind(left), kind(right)), (Some(a), Some(b)) if a != b)
 }
 
 fn excerpt(input: &str, start_offset: usize, end_offset: usize) -> SourceExcerpt {
@@ -598,6 +642,61 @@ mod tests {
         let finding = analyze(doc).into_iter().next().expect("finding");
         assert!(finding.reason.contains("\"waive\""));
         assert!(finding.reason.contains("\"class action\""));
+    }
+
+    #[test]
+    fn recognizes_distinct_arbitration_restrictions_without_scoring_twice() {
+        let text = "All disputes will be settled by binding, individual arbitration, and you waive your right to a jury trial and to join a class action.";
+        let report = analyze_with(&RuleRegistry::builtin(), text);
+        let ids: Vec<_> = report
+            .findings
+            .iter()
+            .map(|finding| finding.rule_id.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "forced_arbitration.class_action_waiver",
+                "forced_arbitration.jury_trial_waiver",
+                "forced_arbitration.mandatory_arbitration",
+            ]
+        );
+        assert_eq!(report.poison_index, 5.0);
+    }
+
+    #[test]
+    fn handles_named_amendment_actors_and_indirect_fee_caps() {
+        for (text, category) in [
+            ("Acme Services may amend or update these T&Cs at any moment, without prior notice.", "unilateral_modification"),
+            ("We may revise these terms from time to time without notice.", "unilateral_modification"),
+            ("In no event shall Acme be liable for any amount in the aggregate in excess of the fees you have actually paid.", "liability_caps"),
+        ] {
+            assert!(analyze(text).iter().any(|finding| finding.category == category), "{text}");
+        }
+        for text in [
+            "Customers may amend these terms without notice.",
+            "Support Agents may amend these terms without notice.",
+            "In no event shall you be liable for an amount in the aggregate in excess of the fees you have actually paid.",
+            "This dispute section titled binding arbitration is referred to as the arbitration agreement.",
+        ] {
+            assert!(analyze(text).is_empty(), "{text}");
+        }
+    }
+
+    #[test]
+    fn matching_site_label_identifies_lowercase_provider() {
+        let text = "acme may modify these terms at any time without prior notice.";
+        let registry = RuleRegistry::builtin();
+        assert!(analyze(text).is_empty());
+        assert!(analyze_with_site(&registry, text, "other.example")
+            .findings
+            .is_empty());
+        let report = analyze_with_site(&registry, text, "www.acme.example");
+        assert_eq!(report.findings[0].category, "unilateral_modification");
+        assert_eq!(
+            report.findings[0].evidence[0].text,
+            "acme may modify these terms"
+        );
     }
 
     #[test]

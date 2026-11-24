@@ -65,6 +65,9 @@ pub const COURT_TERMS: &[&str] = &[
 /// Language that actually mandates arbitration, as opposed to describing it.
 pub const MANDATORY_ARBITRATION: &[&str] = &[
     "binding arbitration",
+    "binding individual arbitration",
+    "binding final arbitration",
+    "binding and final arbitration",
     "mandatory arbitration",
     "shall be resolved by arbitration",
     "shall be resolved exclusively by arbitration",
@@ -75,8 +78,6 @@ pub const MANDATORY_ARBITRATION: &[&str] = &[
     "must be arbitrated",
     "agree to arbitrate",
     "agrees to arbitrate",
-    "you agree that any dispute",
-    "you agree that all disputes",
     "requires you to arbitrate",
     "required to arbitrate",
     "settled by arbitration",
@@ -115,6 +116,8 @@ pub const SEVERABILITY_REFERENCES: &[&str] = &[
     "deemed unenforceable",
     "is found invalid",
     "is held invalid",
+    "section titled",
+    "section entitled",
 ];
 
 /// Something the arbitration clause can be about.
@@ -136,7 +139,11 @@ pub const CLASS_ACTION_BARS: &[&str] = &[
     "not as a plaintiff",
     "agree not to",
     "will not be a class",
+    "will not commence against the other",
+    "you will not commence a class action",
+    "you will not participate in a class action",
     "neither party may",
+    "neither you nor the company will participate",
     "no dispute may",
     "no claim may",
 ];
@@ -211,17 +218,21 @@ pub const MODIFICATION_GUARDS: &[&str] = &[
     "does not mean we may",
 ];
 
-pub const USER_CONTENT_GRANTS: &[&str] = &[
-    "you grant us",
-    "you hereby grant us",
-    "you grant the company",
+pub const USER_CONTENT_GRANTS: &[&str] = &["you grant", "you hereby grant"];
+pub const USER_CONTENT_ASSETS: &[&str] = &[
+    "your content",
+    "your user content",
+    "your submissions",
+    "your user submissions",
+    "content you upload",
+    "providing content using the services",
 ];
-pub const USER_CONTENT_ASSETS: &[&str] = &["your content", "your user content", "your submissions"];
-pub const PERPETUAL_LICENSE: &[&str] = &["perpetual", "irrevocable"];
+pub const PERPETUAL_LICENSE: &[&str] = &["perpetual", "irrevocable", "non revocable"];
 pub const COMMERCIAL_LICENSE: &[&str] = &[
     "commercialize",
     "commercial purposes",
     "sublicensable",
+    "sub licensable",
     "sublicense",
 ];
 pub const ROYALTY_FREE: &[&str] = &["royalty free"];
@@ -229,6 +240,9 @@ pub const SERVICE_ONLY_LICENSE: &[&str] = &[
     "solely to provide the service",
     "only to operate the service",
     "solely to host your content",
+    "in connection with operating and providing the services",
+    "to other users",
+    "to another user",
 ];
 
 pub const USER_DEFENSE: &[&str] = &[
@@ -239,7 +253,7 @@ pub const USER_DEFENSE: &[&str] = &[
 pub const PROVIDER_INDEMNITY: &[&str] = &[
     "indemnify us",
     "hold us harmless",
-    "hold harmless the company",
+    "hold harmless",
     "indemnify the provider",
 ];
 pub const LEGAL_FEES: &[&str] = &[
@@ -264,9 +278,15 @@ pub const RESTRICTED_DISCLAIMERS: &[&str] = &[
 ];
 
 pub const PROVIDER_LIABILITY: &[&str] = &["our total liability", "our aggregate liability"];
-pub const LIABILITY_MAXIMUM: &[&str] = &["shall not exceed", "will not exceed", "is limited to"];
+pub const LIABILITY_MAXIMUM: &[&str] = &[
+    "shall not exceed",
+    "will not exceed",
+    "is limited to",
+    "aggregate in excess of",
+];
 pub const PAID_FEE_CAP: &[&str] = &[
     "the fees you paid",
+    "the fees you have actually paid",
     "the amount you paid",
     "fees paid by you",
     "fees paid to us",
@@ -275,6 +295,8 @@ pub const LIMITED_CAP_SCOPE: &[&str] = &[
     "solely for indirect damages",
     "only for indirect damages",
     "for equitable relief only",
+    "in no event shall you be liable",
+    "in no event will you be liable",
 ];
 
 pub const CUSTOMER_NOTICE: &[&str] = &[

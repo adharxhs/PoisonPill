@@ -24,8 +24,8 @@ import type {
 } from './types';
 
 interface LegalEngine {
-  analyzeJson(text: string): string;
-  analyzeReviewJson(text: string): string;
+  analyzeJsonForSite(text: string, site: string): string;
+  analyzeReviewJsonForSite(text: string, site: string): string;
 }
 
 declare function importScripts(...urls: string[]): void;
@@ -72,10 +72,10 @@ function unwrap(response: AnalyzeResponse): DocumentReport {
   return response.report;
 }
 
-async function analyzeText(text: string): Promise<DocumentReport> {
+async function analyzeText(text: string, site: string): Promise<DocumentReport> {
   const engine = await loadEngine();
   // `analyzeJson` returns the canonical envelope as a JSON string.
-  return unwrap(parseEnvelope(JSON.parse(engine.analyzeJson(text)) as unknown));
+  return unwrap(parseEnvelope(JSON.parse(engine.analyzeJsonForSite(text, site)) as unknown));
 }
 
 async function playbackFixture(): Promise<DocumentReport> {
@@ -97,10 +97,10 @@ function toEngineError(error: unknown): EngineError {
   };
 }
 
-async function run(request: WorkerRequest): Promise<DocumentReport> {
+async function run(request: WorkerRequest, site: string): Promise<DocumentReport> {
   switch (request.type) {
     case 'ANALYZE_TEXT':
-      return analyzeText(request.text);
+      return analyzeText(request.text, site);
     case 'PLAYBACK_FIXTURE':
       return playbackFixture();
   }
@@ -108,18 +108,19 @@ async function run(request: WorkerRequest): Promise<DocumentReport> {
 
 async function handle(request: WorkerRequest, pageUrl?: string): Promise<WorkerResponse> {
   try {
+    const site = pageUrl ? new URL(pageUrl).hostname : '';
     let report: DocumentReport;
     let reviewCandidates: ReviewCandidate[] | undefined;
     if (request.type === 'ANALYZE_TEXT' && request.review === true) {
       const engine = await loadEngine();
-      const review: unknown = JSON.parse(engine.analyzeReviewJson(request.text));
+      const review: unknown = JSON.parse(engine.analyzeReviewJsonForSite(request.text, site));
       if (!Array.isArray(review) || review.length !== 2 || !Array.isArray(review[1])) {
         throw new Error('engine returned a malformed review result');
       }
       report = unwrap(parseEnvelope(review[0]));
       reviewCandidates = review[1] as ReviewCandidate[];
     } else {
-      report = await run(request);
+      report = await run(request, site);
     }
     if (request.type === 'ANALYZE_TEXT' && request.input_truncated === true) {
       report.truncated = true;

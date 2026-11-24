@@ -16,6 +16,7 @@ pub enum Predicate {
     AnyPhrase(&'static [&'static str]),
     /// Whole words with flexible whitespace and hyphenation.
     AnyTokenPhrase(&'static [&'static str]),
+    Either(&'static [Predicate]),
     Relation(Pattern),
     /// True when every listed phrase occurs.
     AllPhrases(&'static [&'static str]),
@@ -92,25 +93,33 @@ impl RuleRegistry {
     }
 
     pub fn matches(&self, clause: &str) -> Vec<RuleMatch> {
+        self.matches_for_site(clause, "")
+    }
+
+    pub(crate) fn matches_for_site(&self, clause: &str, site: &str) -> Vec<RuleMatch> {
         self.rules
             .iter()
-            .filter_map(|rule| rule.evaluate(clause))
+            .filter_map(|rule| rule.evaluate_for_site(clause, site))
             .collect()
     }
 }
 
 impl RuleSpec {
     pub fn evaluate(&self, clause: &str) -> Option<RuleMatch> {
+        self.evaluate_for_site(clause, "")
+    }
+
+    fn evaluate_for_site(&self, clause: &str, site: &str) -> Option<RuleMatch> {
         let window = self.proximity_window;
         let mut evidence = Vec::new();
         let mut hit_spans = Vec::new();
         let mut all_spans = Vec::new();
 
         for predicate in self.required {
-            let hit = predicate.evaluate(clause, window)?;
+            let hit = predicate.evaluate_for_site(clause, window, site)?;
             push_unique(&mut evidence, hit.evidence);
             hit_spans.push((hit.start, hit.end));
-            all_spans.extend(predicate.all_spans(clause, window));
+            all_spans.extend(predicate.spans_for_site(clause, window, site));
         }
 
         if window > 0 && hit_spans.len() > 1 {
@@ -122,15 +131,15 @@ impl RuleSpec {
         }
 
         for predicate in self.prohibited {
-            if predicate.matches(clause, window) {
+            if predicate.evaluate_for_site(clause, window, site).is_some() {
                 return None;
             }
         }
 
         for predicate in self.optional {
-            if let Some(hit) = predicate.evaluate(clause, window) {
+            if let Some(hit) = predicate.evaluate_for_site(clause, window, site) {
                 push_unique(&mut evidence, hit.evidence);
-                all_spans.extend(predicate.all_spans(clause, window));
+                all_spans.extend(predicate.spans_for_site(clause, window, site));
             }
         }
 
@@ -156,14 +165,21 @@ impl Predicate {
     }
 
     pub fn evaluate(&self, clause: &str, window: usize) -> Option<PredicateHit> {
+        self.evaluate_for_site(clause, window, "")
+    }
+
+    fn evaluate_for_site(&self, clause: &str, window: usize, site: &str) -> Option<PredicateHit> {
         match self {
             Predicate::AnyPhrase(phrases) => earliest_phrase(clause, phrases, substring_span),
             Predicate::AnyTokenPhrase(phrases) => {
                 earliest_phrase(clause, phrases, token_phrase_span)
             }
             Predicate::AllPhrases(phrases) => all_phrases(clause, phrases),
+            Predicate::Either(options) => options
+                .iter()
+                .find_map(|option| option.evaluate_for_site(clause, window, site)),
             Predicate::Relation(pattern) => {
-                relations::find(clause, *pattern).map(|matched| PredicateHit {
+                relations::find(clause, *pattern, site).map(|matched| PredicateHit {
                     start: matched.action_span.0,
                     end: matched.action_span.1.max(matched.condition_span.1),
                     evidence: vec![matched.action_phrase, matched.condition_phrase],
@@ -177,6 +193,10 @@ impl Predicate {
     /// so a hostile carve-out after the marker is visible even when the same
     /// phrase also appeared in the compliant base.
     pub fn all_spans(&self, clause: &str, window: usize) -> Vec<(usize, usize)> {
+        self.spans_for_site(clause, window, "")
+    }
+
+    fn spans_for_site(&self, clause: &str, window: usize, site: &str) -> Vec<(usize, usize)> {
         match self {
             Predicate::AnyPhrase(phrases) | Predicate::AllPhrases(phrases) => {
                 all_occurrences(clause, phrases)
@@ -190,7 +210,12 @@ impl Predicate {
                     .map(|(start, _, len)| (start, start + len))
                     .collect()
             }
-            Predicate::Relation(pattern) => relations::find(clause, *pattern)
+            Predicate::Either(options) => options
+                .iter()
+                .find(|option| option.evaluate_for_site(clause, window, site).is_some())
+                .map(|option| option.spans_for_site(clause, window, site))
+                .unwrap_or_default(),
+            Predicate::Relation(pattern) => relations::find(clause, *pattern, site)
                 .map(|matched| vec![matched.action_span, matched.condition_span])
                 .unwrap_or_default(),
             Predicate::Near { .. } => self
@@ -216,7 +241,7 @@ fn substring_span(clause: &str, phrase: &str) -> Option<(usize, usize)> {
 }
 
 fn token_separator(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '-' | '‐' | '‑')
+    c.is_whitespace() || matches!(c, '-' | '‐' | '‑' | ',' | '\'' | '’')
 }
 
 fn word_char(c: char) -> bool {
@@ -480,7 +505,7 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         ],
         optional: &[],
         prohibited: MANDATORY_ARBITRATION_GUARDS,
-        proximity_window: 60,
+        proximity_window: 100,
         inversion_sensitive: false,
     },
     RuleSpec {
@@ -531,7 +556,7 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         ],
         optional: &[],
         prohibited: &[Predicate::AnyTokenPhrase(lexicon::SERVICE_ONLY_LICENSE)],
-        proximity_window: 40,
+        proximity_window: 75,
         inversion_sensitive: false,
     },
     RuleSpec {
@@ -574,13 +599,19 @@ pub const BUILTIN_RULES: &[RuleSpec] = &[
         modality: Modality::Prohibition,
         weight: 3.5,
         required: &[
-            Predicate::AnyTokenPhrase(lexicon::PROVIDER_LIABILITY),
+            Predicate::Either(&[
+                Predicate::AnyTokenPhrase(lexicon::PROVIDER_LIABILITY),
+                Predicate::Near {
+                    left: &["in no event shall", "in no event will"],
+                    right: &["be liable"],
+                },
+            ]),
             Predicate::AnyTokenPhrase(lexicon::LIABILITY_MAXIMUM),
             Predicate::AnyTokenPhrase(lexicon::PAID_FEE_CAP),
         ],
         optional: &[],
         prohibited: &[Predicate::AnyTokenPhrase(lexicon::LIMITED_CAP_SCOPE)],
-        proximity_window: 28,
+        proximity_window: 45,
         inversion_sensitive: false,
     },
     RuleSpec {

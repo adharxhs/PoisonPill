@@ -11,7 +11,7 @@ that string; it does not reshape it.
 
 ## `ClauseFinding`
 
-One finding per category per clause. Findings are sorted by `start_offset`, then
+Findings are sorted by `start_offset`, then
 by the deterministic order of rules in the registry.
 
 | Field | Type | Meaning |
@@ -192,9 +192,11 @@ whether extracted text changed, and added/removed finding counts. Partial
 reports and scans with more than 250 findings skip comparison. This comparison
 reports changes in scanned wording rather than a legal conclusion.
 
-A class waiver and jury waiver can produce separate findings for one sentence.
-Their shared category contributes to the score once, using the first finding
-in registry order for the same byte range.
+Mandatory arbitration, class restrictions, and jury waivers can produce
+separate findings for the same sentence. Their shared category contributes
+to the score once per byte range. The website scan can supply its hostname
+as context for identifying a named amendment actor. The source text and
+UTF-8 offsets remain unchanged.
 
 ## Determinism
 

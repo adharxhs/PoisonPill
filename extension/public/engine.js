@@ -27,6 +27,38 @@ let wasm_bindgen = (function(exports) {
             return ret;
         }
         /**
+         * @param {string} raw_text
+         * @param {string} site
+         * @returns {string}
+         */
+        analyzeJsonForSite(raw_text, site) {
+            let deferred3_0;
+            let deferred3_1;
+            try {
+                const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+                let ptr0, len0, ptr1, len1;
+                try {
+                    ptr0 = passStringToWasm0(raw_text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+                    len0 = WASM_VECTOR_LEN;
+                    ptr1 = passStringToWasm0(site, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+                    len1 = WASM_VECTOR_LEN;
+                } catch (e) {
+                    if (ptr1) { wasm.__wbindgen_export3(ptr1, len1 * 1, 1); }
+                    if (ptr0) { wasm.__wbindgen_export3(ptr0, len0 * 1, 1); }
+                    throw e;
+                }
+                wasm.legalengine_analyzeJsonForSite(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1);
+                var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+                var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+                deferred3_0 = r0;
+                deferred3_1 = r1;
+                return getStringFromWasm0(r0, r1);
+            } finally {
+                wasm.__wbindgen_add_to_stack_pointer(16);
+                wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+            }
+        }
+        /**
          * Canonical JSON form used by parity tests and the worker.
          * @param {string} raw_text
          * @returns {string}
@@ -47,6 +79,38 @@ let wasm_bindgen = (function(exports) {
             } finally {
                 wasm.__wbindgen_add_to_stack_pointer(16);
                 wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
+            }
+        }
+        /**
+         * @param {string} raw_text
+         * @param {string} site
+         * @returns {string}
+         */
+        analyzeReviewJsonForSite(raw_text, site) {
+            let deferred3_0;
+            let deferred3_1;
+            try {
+                const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+                let ptr0, len0, ptr1, len1;
+                try {
+                    ptr0 = passStringToWasm0(raw_text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+                    len0 = WASM_VECTOR_LEN;
+                    ptr1 = passStringToWasm0(site, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+                    len1 = WASM_VECTOR_LEN;
+                } catch (e) {
+                    if (ptr1) { wasm.__wbindgen_export3(ptr1, len1 * 1, 1); }
+                    if (ptr0) { wasm.__wbindgen_export3(ptr0, len0 * 1, 1); }
+                    throw e;
+                }
+                wasm.legalengine_analyzeReviewJsonForSite(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1);
+                var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+                var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+                deferred3_0 = r0;
+                deferred3_1 = r1;
+                return getStringFromWasm0(r0, r1);
+            } finally {
+                wasm.__wbindgen_add_to_stack_pointer(16);
+                wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
             }
         }
         /**

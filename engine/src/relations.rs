@@ -98,6 +98,53 @@ fn actor(words: &[Word<'_>]) -> Option<(Actor, usize)> {
         })
 }
 
+/// A clause-initial named entity can be the actor of an explicit amendment.
+fn site_actor(word: &str, site: &str) -> bool {
+    word.len() >= 4
+        && site
+            .split('.')
+            .any(|label| word.eq_ignore_ascii_case(label))
+}
+
+fn named_provider(words: &[Word<'_>], site: &str) -> Option<usize> {
+    const NON_PROVIDER: &[&str] = &[
+        "anyone",
+        "both",
+        "customer",
+        "customers",
+        "employees",
+        "everyone",
+        "members",
+        "neither",
+        "no",
+        "nobody",
+        "party",
+        "parties",
+        "someone",
+        "support",
+        "they",
+        "third",
+        "user",
+        "users",
+        "you",
+        "your",
+    ];
+    for (index, word) in words.iter().take(4).enumerate() {
+        if index > 0 && force(&words[index..]).is_some() {
+            return Some(index);
+        }
+        if (!word.text.chars().any(char::is_uppercase)
+            && !(index == 0 && site_actor(word.text, site)))
+            || NON_PROVIDER
+                .iter()
+                .any(|name| word.text.eq_ignore_ascii_case(name))
+        {
+            return None;
+        }
+    }
+    None
+}
+
 fn force(words: &[Word<'_>]) -> Option<(Force, usize)> {
     for (force, phrases) in [
         (
@@ -127,11 +174,14 @@ fn action(words: &[Word<'_>], action: Action) -> Option<(&'static str, usize)> {
         Action::ModifyTerms => (
             &["amend", "change", "modify", "revise", "update", "alter"],
             &[
+                "these terms and conditions",
                 "these terms",
                 "this agreement",
                 "the terms",
                 "our terms",
                 "this contract",
+                "these t cs",
+                "these t c s",
             ],
         ),
         Action::TerminateAccess => (
@@ -148,8 +198,14 @@ fn action(words: &[Word<'_>], action: Action) -> Option<(&'static str, usize)> {
         ),
     };
     let (verb, verb_len) = first_phrase(words, verbs)?;
-    let (_, object_len) = first_phrase(&words[verb_len..], objects)?;
-    Some((verb, verb_len + object_len))
+    let mut object = verb_len;
+    if action == Action::ModifyTerms && starts(&words[object..], "or").is_some() {
+        if let Some((_, second)) = first_phrase(&words[object + 1..], verbs) {
+            object += 1 + second;
+        }
+    }
+    let (_, object_len) = first_phrase(&words[object..], objects)?;
+    Some((verb, object + object_len))
 }
 
 fn condition(words: &[Word<'_>], condition: Condition) -> Option<(&'static str, usize)> {
@@ -181,8 +237,12 @@ fn condition(words: &[Word<'_>], condition: Condition) -> Option<(&'static str, 
     }
 }
 
-fn at_frame(words: &[Word<'_>], pattern: Pattern) -> Option<Match> {
-    let (actor, actor_len) = actor(words)?;
+fn at_frame(words: &[Word<'_>], pattern: Pattern, at_start: bool, site: &str) -> Option<Match> {
+    let (actor, actor_len) = actor(words).or_else(|| {
+        (at_start && pattern.actor == Actor::Provider && pattern.action == Action::ModifyTerms)
+            .then(|| named_provider(words, site).map(|length| (Actor::Provider, length)))
+            .flatten()
+    })?;
     let (force, modal_len) = force(&words[actor_len..])?;
     if actor != pattern.actor || force != pattern.force {
         return None;
@@ -190,7 +250,12 @@ fn at_frame(words: &[Word<'_>], pattern: Pattern) -> Option<Match> {
     let mut action_start = actor_len + modal_len;
     if let Some((_, length)) = first_phrase(
         &words[action_start..],
-        &["at any time", "at our sole discretion"],
+        &[
+            "at any time",
+            "at our sole discretion",
+            "from time to time",
+            "at any moment",
+        ],
     ) {
         action_start += length;
     }
@@ -208,7 +273,15 @@ fn at_frame(words: &[Word<'_>], pattern: Pattern) -> Option<Match> {
     let (condition_phrase, condition_start, condition_length) = match leading_condition {
         Some(found) => found,
         None => {
-            let modifier = first_phrase(&words[end..], &["at any time", "at our sole discretion"]);
+            let modifier = first_phrase(
+                &words[end..],
+                &[
+                    "at any time",
+                    "at our sole discretion",
+                    "from time to time",
+                    "at any moment",
+                ],
+            );
             let start = end + modifier.map_or(0, |(_, length)| length);
             let (phrase, length) = condition(&words[start..], pattern.condition)?;
             (phrase, start, length)
@@ -225,7 +298,7 @@ fn at_frame(words: &[Word<'_>], pattern: Pattern) -> Option<Match> {
     })
 }
 
-pub(crate) fn find(text: &str, pattern: Pattern) -> Option<Match> {
+pub(crate) fn find(text: &str, pattern: Pattern, site: &str) -> Option<Match> {
     // Explicit punctuation boundaries prevent modal arguments from leaking
     // into another clause or across quoted examples.
     let mut offset = 0;
@@ -246,15 +319,19 @@ pub(crate) fn find(text: &str, pattern: Pattern) -> Option<Match> {
         let segment = section.trim_end_matches([';', ':', '"', '“', '”', '!', '?']);
         // Bounded lookahead for each actor rather than tokenizing the complete
         // input or reconsidering ambiguous verb chains.
-        for word in words(segment) {
-            if !["we", "the", "our", "you"]
-                .iter()
-                .any(|actor| word.text.eq_ignore_ascii_case(actor))
+        for (index, word) in words(segment).enumerate() {
+            let named_start = index == 0
+                && pattern.action == Action::ModifyTerms
+                && (word.text.chars().any(char::is_uppercase) || site_actor(word.text, site));
+            if !named_start
+                && !["we", "the", "our", "you"]
+                    .iter()
+                    .any(|actor| word.text.eq_ignore_ascii_case(actor))
             {
                 continue;
             }
             let window: Vec<_> = words(&segment[word.start..]).take(24).collect();
-            if let Some(mut parsed) = at_frame(&window, pattern) {
+            if let Some(mut parsed) = at_frame(&window, pattern, named_start, site) {
                 let base = start + word.start;
                 parsed.action_span.0 += base;
                 parsed.action_span.1 += base;

@@ -46,22 +46,26 @@ pub enum Predicate {
     AnyPhrase(&'static [&'static str]),
     AnyTokenPhrase(&'static [&'static str]),
     Relation(Pattern),
+    Either(&'static [Predicate]),
     AllPhrases(&'static [&'static str]),
     Near { left: &'static [&'static str], right: &'static [&'static str] },
 }
 ```
 
 - Matching is ASCII-case-insensitive. Existing phrase predicates use substrings.
-  `AnyTokenPhrase` requires whole words, accepts whitespace and hyphen variants
-  between them, and retains byte spans into the original clause. The sentence
-  splitter still treats explicit line breaks as clause boundaries.
+  `AnyTokenPhrase` requires whole words, accepts whitespace and selected punctuation
+  between them, and retains byte spans into the original clause. The tokenizer
+  joins specific soft wraps.
 - `Relation` binds an explicit actor, deontic force, action, object, and nearby
   qualifier. It keeps separate byte spans for the matched action and qualifier.
   The amendment, advertising disclosure, and immediate provider termination
-  rules use it. Unsupported grammatical forms fall through.
+  rules use it. Amendment rules can recognize a clause-initial named provider
+  or an actor matching the scanned website’s hostname label. Unsupported
+  grammatical forms fall through.
 - `AnyPhrase` returns the **earliest** listed phrase. That phrase becomes
   explainability evidence.
 - `AllPhrases` requires every phrase and reports all of them.
+- `Either` takes the first matching predicate and exposes its evidence.
 - `Near` needs one phrase from each side within the rule's `proximity_window`.
 - `prohibited` is evaluated before `optional`.
 - `optional` exists for supporting evidence (for example `plaintiff` or
@@ -79,8 +83,11 @@ coincidental to ship.
 ### Determinism
 
 - Rules are evaluated in registry order.
-- Multiple rules in one category collapse to one finding per clause; the first
-  match wins.
+- Arbitration, class restrictions, and jury waivers can be reported together
+  for the same sentence. Explicit class bars take precedence when a later
+  waiver concerns another right. Generic court matches and duplicate class
+  findings are suppressed where they overlap. Other categories keep the first
+  matching rule per clause. The score counts each category once per range.
 - Findings are emitted in sentence order, and the tokenizer is linear.
 - No hash maps participate in output ordering.
 
