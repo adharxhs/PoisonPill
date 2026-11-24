@@ -1,12 +1,17 @@
 // Extract visible text and send it to the extension worker. Detection runs in Rust.
 import { clearClauseHighlight, highlightClause } from './highlight';
+import { readPageText, type PageText } from './page-text';
 import { isJumpToClauseRequest } from './types';
 import type { AnalyzeRequest, JumpToClauseResponse, PageScanResponse, ScanRecord, WorkerResponse } from './types';
 
 const LEGAL_PATH = /^(?:terms(?:[-_]of[-_](?:service|use)|[-_]and[-_]conditions)?|termsandconditions|tos|privacy(?:[-_](?:policy|notice|statement))?|cookie[-_]policy|eula|dpa|user[-_]agreement|license[-_]agreement|data[-_]processing[-_]agreement)(?:\.html?)?$/i;
 const LEGAL_HEADING = /^(?:terms(?: of (?:service|use)| and conditions)?|privacy (?:policy|notice|statement)|cookie policy|end[- ]user licen[cs]e agreement|user agreement|data processing agreement)$/i;
-const MAX_CHARS = 120_000;
+const RESCAN_DELAY_MS = 700;
 let scanSequence = 0;
+let scanInFlight = false;
+let rescanTimer: ReturnType<typeof setTimeout> | undefined;
+let lastScan: { url: string; text: string; truncated: boolean } | undefined;
+const observedDocuments = new WeakSet<Document>();
 
 function looksLegal(): boolean {
   const segments = location.pathname.split('/').filter(Boolean);
@@ -20,24 +25,67 @@ function looksLegal(): boolean {
     .some((label) => label.split(/\s*[|:–—]\s*|\s+-\s+/).some((part) => LEGAL_HEADING.test(part.trim())));
 }
 
-async function scan(review = false): Promise<ScanRecord> {
-  const visibleText = document.body?.innerText ?? '';
-  let text = visibleText.slice(0, MAX_CHARS);
-  // Avoid cutting a UTF-16 surrogate pair before passing text to Wasm.
-  if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+const observer = new MutationObserver(scheduleRescan);
+
+function observeDocuments(documents: Document[]): void {
+  for (const current of documents) {
+    if (observedDocuments.has(current) || !current.documentElement) continue;
+    observedDocuments.add(current);
+    observer.observe(current.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'open', 'aria-hidden', 'src', 'srcdoc'],
+    });
+    current.addEventListener('load', (event) => {
+      const tag = (event.target as Element | null)?.tagName;
+      if (tag === 'IFRAME' || tag === 'OBJECT') scheduleRescan();
+    }, true);
+  }
+}
+
+function scheduleRescan(): void {
+  if (document.visibilityState !== 'visible' || rescanTimer !== undefined) return;
+  rescanTimer = setTimeout(() => {
+    rescanTimer = undefined;
+    if (document.visibilityState !== 'visible' || !looksLegal()) return;
+    if (scanInFlight) {
+      scheduleRescan();
+      return;
+    }
+    const snapshot = readPageText(document);
+    observeDocuments(snapshot.documents);
+    if (!snapshot.text.trim() || (
+      lastScan?.url === location.href &&
+      lastScan.text === snapshot.text &&
+      lastScan.truncated === snapshot.truncated
+    )) return;
+    void scan(false, snapshot).catch(() => undefined);
+  }, RESCAN_DELAY_MS);
+}
+
+async function scan(review = false, snapshot = readPageText(document)): Promise<ScanRecord> {
+  const { text, truncated } = snapshot;
   if (!text.trim()) throw new Error('This page has no visible text to scan.');
+  if (looksLegal()) observeDocuments(snapshot.documents);
 
   const sequence = ++scanSequence;
   const url = location.href;
-  const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: text.length < visibleText.length, review };
-  const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
-  if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
-  if (sequence !== scanSequence || location.href !== url) {
-    throw new Error('The page or scan changed. Refresh the report again.');
+  scanInFlight = true;
+  try {
+    const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: truncated, review };
+    const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
+    if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
+    if (sequence !== scanSequence || location.href !== url) {
+      throw new Error('The page or scan changed. Refresh the report again.');
+    }
+    if (!response.record) throw new Error('The background worker did not return a page report.');
+    lastScan = { url, text, truncated };
+    return response.record;
+  } finally {
+    if (sequence === scanSequence) scanInFlight = false;
   }
-
-  if (!response.record) throw new Error('The background worker did not return a page report.');
-  return response.record;
 }
 
 chrome.runtime.onMessage.addListener(
@@ -66,6 +114,15 @@ chrome.runtime.onMessage.addListener(
     return true;
   },
 );
+
+// The inexpensive observer also notices when a single-page app changes an
+// ordinary view into a legal page. Only eligible pages are extracted.
+observeDocuments([document]);
+window.addEventListener('popstate', scheduleRescan);
+window.addEventListener('hashchange', scheduleRescan);
+if ('navigation' in window && window.navigation instanceof EventTarget) {
+  window.navigation.addEventListener('navigatesuccess', scheduleRescan);
+}
 
 if (document.visibilityState === 'visible' && looksLegal()) {
   void scan().catch(() => {

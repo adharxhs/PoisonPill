@@ -1,9 +1,10 @@
+import { readPageText } from './page-text';
 import type { JumpToClauseRequest, JumpToClauseResponse } from './types';
 
 const NAME = 'poisonpill-matched-clause';
 const DURATION = 15_000;
 const MAX_MAPPED_TEXT = 240_000;
-let style: CSSStyleSheet | undefined;
+let active: { style: CSSStyleSheet; document: Document; registry: HighlightRegistry } | undefined;
 let expiry: ReturnType<typeof setTimeout> | undefined;
 
 function collapse(text: string): string {
@@ -16,7 +17,7 @@ interface TextPoint {
 }
 
 function textMap(element: HTMLElement): { text: string; points: TextPoint[] } {
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const chars: string[] = [];
   const points: TextPoint[] = [];
   for (let child = walker.nextNode(); child; child = walker.nextNode()) {
@@ -38,7 +39,7 @@ function rangeAt(points: TextPoint[], start: number, end: number): Range | undef
   const first = points[start];
   const last = points[end - 1];
   if (!first || !last || start >= end) return;
-  const range = new Range();
+  const range = first.node.ownerDocument.createRange();
   range.setStart(first.node, first.offset);
   range.setEnd(last.node, last.offset + 1);
   return range;
@@ -48,7 +49,7 @@ function smallestSection(body: HTMLElement, text: string): HTMLElement {
   let target = body;
   for (;;) {
     const child = Array.from(target.children).find(
-      (node): node is HTMLElement => node instanceof HTMLElement &&
+      (node): node is HTMLElement => 'innerText' in node && typeof node.innerText === 'string' &&
         node.checkVisibility({ visibilityProperty: true }) && node.innerText.includes(text),
     );
     if (!child) return target;
@@ -58,11 +59,11 @@ function smallestSection(body: HTMLElement, text: string): HTMLElement {
 
 export function clearClauseHighlight(): void {
   clearTimeout(expiry);
-  CSS.highlights.delete(NAME);
-  if (style) {
-    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== style);
-    style = undefined;
-  }
+  if (!active) return;
+  const { registry, document: source, style } = active;
+  registry.delete(NAME);
+  source.adoptedStyleSheets = source.adoptedStyleSheets.filter((sheet) => sheet !== style);
+  active = undefined;
 }
 
 export function highlightClause(request: JumpToClauseRequest): JumpToClauseResponse {
@@ -72,10 +73,14 @@ export function highlightClause(request: JumpToClauseRequest): JumpToClauseRespo
     return { status: 'error', message: 'Refresh the report for this page before locating the clause.' };
   }
 
-  const body = document.body;
+  const sources = readPageText(document).documents.filter((source) => source.body?.innerText.includes(text));
+  const source = sources[0];
+  const body = source?.body;
+  const view = source?.defaultView;
   const visibleText = body?.innerText ?? '';
   const visibleStart = visibleText.indexOf(text);
-  if (!body || visibleStart < 0 || visibleText.indexOf(text, visibleStart + 1) >= 0) {
+  if (!source || !body || !view || sources.length !== 1 ||
+    visibleStart < 0 || visibleText.indexOf(text, visibleStart + 1) >= 0) {
     return { status: 'error', message: 'The exact clause is missing or appears more than once on this page.' };
   }
 
@@ -107,17 +112,19 @@ export function highlightClause(request: JumpToClauseRequest): JumpToClauseRespo
   }
 
   const ranges = matches.length ? matches : [clause];
-  style = new CSSStyleSheet();
+  const style = new view.CSSStyleSheet();
   style.replaceSync(`::highlight(${NAME}) { background-color: #ffdf62; color: #16130a; }`);
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, style];
-  CSS.highlights.set(NAME, new Highlight(...ranges));
+  source.adoptedStyleSheets = [...source.adoptedStyleSheets, style];
+  const registry = view.CSS.highlights;
+  registry.set(NAME, new view.Highlight(...ranges));
+  active = { style, document: source, registry };
   expiry = setTimeout(clearClauseHighlight, DURATION);
 
   const anchor = matches[0] ?? clause;
   anchor.startContainer.parentElement?.scrollIntoView({ block: 'center', behavior: 'instant' });
   const position = anchor.getBoundingClientRect();
-  if (position.top < 0 || position.bottom > window.innerHeight) {
-    window.scrollBy({ top: position.top - window.innerHeight / 2, behavior: 'instant' });
+  if (position.top < 0 || position.bottom > view.innerHeight) {
+    view.scrollBy({ top: position.top - view.innerHeight / 2, behavior: 'instant' });
   }
   return { status: 'ok', highlighted: matches.length ? 'evidence' : 'clause' };
 }

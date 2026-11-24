@@ -61,8 +61,8 @@ category per clause). Treat their real-world recall as plausible, not measured.
 ### Benchmark scope
 
 A provider-separated ToS-100 benchmark measures agreement with four overlapping
-labels. General real-world precision and recall for the full taxonomy remain
-unmeasured. The corpus is pre-tokenized, several benchmark labels have broader
+labels. An exact-rule check on a small selected panel covers 35 real clauses.
+General precision and recall for the full taxonomy remain unmeasured. The corpus is pre-tokenized, several benchmark labels have broader
 scope than the rules, and the review model can suggest false positives.
 [Measurements](MEASUREMENTS.md#provider-separated-tos-100-review-experiment)
 records the counts and split procedure.
@@ -72,7 +72,7 @@ records the counts and split procedure.
 The engine detects forced arbitration and related waivers, plus explicit
 provider permission to amend terms without notice. The modification rule
 requires both signals in one clause. Silence about notice, cross-clause
-conditions, and unfamiliar wording can escape detection. The additional
+conditions beyond adjacent same-block clauses, and unfamiliar wording can escape detection. The additional
 categories each start with one explicit pattern. Split-sentence termination
 rights, indirect commercial IP grants, liability caps phrased as fixed amounts,
 and transfers without a named advertising purpose can escape detection.
@@ -109,15 +109,29 @@ The engine truncates at 524,288 bytes on a character boundary. The content scrip
 also caps extracted text at 120,000 UTF-16 code units without splitting a
 surrogate pair. The popup and PDF show when either limit truncates the scan.
 
-### Extraction is shallow
+### Page and PDF coverage
 
-The content script reads `document.body.innerText`. Shadow DOM, embedded frames,
-canvas content, and PDF viewer text can be outside the scan. Automatic scans
-require a likely legal URL, title, or main heading and non-empty visible text.
-A footer link or consent checkbox alone does not trigger a scan. **Refresh
-report** can scan other pages on demand. Browser-internal pages and pages
-without a content script cannot be inspected. Automatic scans after changes
-within a tab remain open.
+The content script reads visible page text and rendered same-origin HTML
+frames or objects. Cross-origin frames, shadow DOM, and Chrome’s built-in PDF
+viewer are outside that path. **Scan a PDF** accepts a local PDF up to 20 MB and
+reads selectable text across at most 200 pages. Image-only scans and locked
+files need a text layer or an unlocked local copy to scan.
+
+Automatic scans require a likely legal URL, title, or main heading.
+Navigation and text changes trigger a debounced rescan while the document is
+visible. Cosmetic updates that leave the extracted text unchanged are skipped.
+A footer link or consent checkbox alone does not qualify. **Refresh report**
+can scan ordinary pages on demand.
+
+### Clause context is bounded
+
+The tokenizer joins specific soft line wraps, including split binding
+arbitration and no-notice language. Blank lines and list boundaries remain
+distinct. The termination rule can connect immediate provider termination
+to a clearly stated customer notice requirement in the next same-block
+sentence. Explicit, adjacent restrictions on “this right” can suppress a
+termination or amendment finding. Distant, implicit, or nested exceptions
+can still escape detection.
 
 ### Latency numbers are not a browser guarantee
 

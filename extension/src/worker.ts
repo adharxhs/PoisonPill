@@ -173,6 +173,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 async function handlePageRequest(request: WorkerRequest, sender: chrome.runtime.MessageSender): Promise<WorkerResponse> {
+  if (request.type === 'ANALYZE_TEXT' && request.local_pdf === true &&
+    sender.url === chrome.runtime.getURL('pdf.html')) {
+    return handle(request);
+  }
   const tabId = sender.tab?.id;
   const pageUrl = sender.url;
   if (request.type !== 'ANALYZE_TEXT' || tabId === undefined || !pageUrl) {

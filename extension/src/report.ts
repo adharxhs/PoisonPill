@@ -151,12 +151,14 @@ export function buildPdf(record: ScanRecord): jsPDF {
 
   const { report } = record;
   paragraph('PoisonPill contract scan', 24, true);
-  paragraph(`Source: ${safeSource(record.url)}\nScanned: ${record.scanned_at}`);
+  paragraph(`Source: ${record.source_name ?? safeSource(record.url)}\nScanned: ${record.scanned_at}`);
   const count = report.findings.length;
   paragraph(`${count} ${count === 1 ? 'term' : 'terms'} to review`, 14, true);
   paragraph(report.truncated
-    ? 'Only the first part of the page was checked because the text was too long.'
-    : 'This scan checked text visible on the page. Linked documents, PDFs and some embedded content may have been missed.');
+    ? 'Only the first part of the source was checked because it exceeded the scan limit.'
+    : record.source_name
+      ? 'This scan checked selectable text in the PDF. Words that only appear in images may have been missed.'
+      : 'This scan checked visible page text and readable embedded pages on the same site. Linked files, PDF viewers and some embedded content may have been missed.');
   paragraph('Use this report to see what the terms could mean for you and what to check next. Your options depend on the version you accepted, what happened, where you live and any deadlines.');
   if (record.comparison) {
     const previous = record.comparison;

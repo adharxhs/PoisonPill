@@ -473,6 +473,9 @@ async function refreshReport(review = false): Promise<void> {
   }
 }
 
+document.querySelector('#scan-pdf')?.addEventListener('click', () => {
+  void chrome.tabs.create({ url: chrome.runtime.getURL('pdf.html') }).catch(() => status('Could not open the PDF scanner.'));
+});
 refreshButton?.addEventListener('click', () => void refreshReport());
 reviewButton?.addEventListener('click', () => void refreshReport(true));
 

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scan a PDF · PoisonPill</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px system-ui, sans-serif; }
+    body { max-width: 48rem; margin: 3rem auto; padding: 0 1.25rem; }
+    h1 { margin-bottom: .5rem; }
+    label { font-weight: 600; }
+    input, button { font: inherit; margin-block: .75rem; }
+    button { padding: .45rem .85rem; }
+    blockquote { margin: .5rem 0 1rem; border-inline-start: 3px solid #638cba; padding-inline-start: .75rem; white-space: pre-wrap; }
+    li { margin-block: 1rem; }
+  </style>
+  <script type="module" src="pdf-page.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Scan a PDF</h1>
+    <p>Choose a PDF saved on this device. The scan reads selectable text locally. Image-only scans need a text layer first.</p>
+    <label for="file">Choose PDF</label>
+    <input id="file" type="file" accept=".pdf,application/pdf">
+    <p id="status" role="status" aria-live="polite"></p>
+    <section id="result" hidden>
+      <h2 id="summary"></h2>
+      <button id="download" type="button">Download PDF report</button>
+      <ol id="findings"></ol>
+    </section>
+  </main>
+</body>
+</html>

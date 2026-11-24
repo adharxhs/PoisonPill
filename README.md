@@ -36,8 +36,9 @@ Node alone; Rust is needed only to change detection logic.
 - Returns a canonical JSON report with a document-level poison index and is
   byte-identical between native and Wasm builds.
 - Analyses bounded visible text and reports truncation at the page and engine limits.
-- Loading or switching to a likely legal or terms page scans it automatically. Refresh report scans it on demand. Download PDF gives a plain-language explanation, practical steps, and a short technical note for each finding.
+- Loading, switching to, or changing the visible text of a likely legal page triggers a scan. Refresh report scans it on demand. Visible same-origin HTML embeds are included. Download PDF gives a plain-language explanation, practical steps, and a short technical note for each finding.
 
+- **Scan a PDF** opens a local file picker for text-based PDFs. The scan runs on this device and can export its own report.
 - **Review more clauses** runs a bundled n-gram model offline. Possible clauses
   appear in a separate list and leave the Poison Index and PDF findings intact.
   See [the provider-separated benchmark](docs/MEASUREMENTS.md#provider-separated-tos-100-review-experiment).

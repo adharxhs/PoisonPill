@@ -50,6 +50,11 @@ assets:
 	cp manifest.json $(DIST_DIR)/manifest.json
 	cp $(EXTENSION_DIR)/icons/*.png $(DIST_DIR)/icons/
 	cp -R $(PUBLIC_DIR)/. $(DIST_DIR)/
+	cp node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs $(DIST_DIR)/pdf.worker.mjs
+	cp node_modules/pdfjs-dist/LICENSE $(DIST_DIR)/pdfjs-LICENSE
+	mkdir -p $(DIST_DIR)/pdf-cmaps $(DIST_DIR)/pdf-fonts
+	cp -R node_modules/pdfjs-dist/cmaps/. $(DIST_DIR)/pdf-cmaps/
+	cp -R node_modules/pdfjs-dist/standard_fonts/. $(DIST_DIR)/pdf-fonts/
 	@if [ ! -f $(PUBLIC_DIR)/engine.wasm ]; then \
 		echo "warning: $(PUBLIC_DIR)/engine.wasm missing, run 'make engine'"; \
 	fi

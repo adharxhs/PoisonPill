@@ -167,6 +167,12 @@ Tab activation asks the selected tab’s content script to scan if its URL, titl
 worker checks that the originating tab is still active before replacing
 `last_scan`. The popup only shows a stored report for its current tab.
 
+Same-origin embedded HTML is appended to the source text, separated by
+paragraph breaks. Automatic in-page updates reuse the same pipeline and skip
+identical text. The dedicated PDF scanner sends locally extracted text with
+`local_pdf: true` and retains its report in that tab for export. It does not
+replace the active web-page report or its comparison baseline.
+
 ## Optional review
 
 `analyzeReviewJson` returns a pair containing the standard response envelope

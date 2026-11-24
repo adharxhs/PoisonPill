@@ -89,13 +89,11 @@ correct; the tag promises the mechanism and one authored category, not coverage.
     labels for severity. A plain list is accessible by default; annotations and
     badges often are not.
 
-16. **Rescan after in-tab edits.** Tab activation and manual refresh rescan
-    the page and show when the text was cut off. Automatic rescans after
-    client-side navigation or a "load more" expansion remain open.
-
-17. **PDF and embed support.** Contracts are frequently PDFs. Local extraction
-    inside the extension is a separate dependency and size/privacy decision; do
-    not add a remote viewer or a network-backed extraction service.
+16. **Page rescans.** Likely legal pages now rescan after navigation and text
+    changes, with unchanged text deduplicated.
+17. **Document coverage.** Local text-based PDF scanning and visible
+    same-origin HTML embeds are available. OCR, browser PDF viewer access,
+    and cross-origin extraction remain open.
 
 ## Tooling and delivery
 

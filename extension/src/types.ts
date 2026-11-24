@@ -67,6 +67,7 @@ export interface ScanComparison {
 /** Persisted under `chrome.storage.local["last_scan"]` for the popup. */
 export interface ScanRecord {
   tab_id?: number;
+  source_name?: string;
   url: string;
   scanned_at: string;
   comparison?: ScanComparison;
@@ -79,6 +80,7 @@ export interface AnalyzeRequest {
   text: string;
   input_truncated?: boolean;
   review?: boolean;
+  local_pdf?: boolean;
 }
 
 /** Returns a bundled report so UI work needs no Wasm build. */
