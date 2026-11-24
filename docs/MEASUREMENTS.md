@@ -217,3 +217,40 @@ unigrams and bigrams and four-character n-grams, with 4,096 buckets and a
 Wasm extension use the same Rust inference code and the same 32,784-byte model.
 The committed model's SHA-256 is
 `1c0b0e14b6f8205767332a41a3d2e7d85439e0f0dda4bb588c8256a7284b09d6`.
+
+## Exact-rule check on real agreements
+
+The [ToS-100 test split](https://doi.org/10.5281/zenodo.22691656) supplied 35
+selected clauses from ten providers. The [annotation panel](../fixtures/exact-rules/tos100.tsv)
+records source-row IDs, expected PoisonPill rule IDs, and reasons. It uses the
+original agreements as distributed in the test split. It contains no copies
+of the source text. The clauses were labelled in isolation before the benchmark run without independent legal review. The panel specifically includes tricky near misses such as
+advance notice, a fixed-dollar cap, or a service modification in place of a
+contract modification.
+
+Exact sets of rule IDs matched on 20 of 35 clauses. Across the panel's 23
+positive rule labels, the engine matched 9, missed 14, and produced 2 additional
+rule IDs. This gives 81.8% precision (9/11) and 39.1% recall (9/23) on this
+small, deliberately selected panel. It is not a population estimate. The
+panel lacks positive examples for advertising disclosure and two-sided
+termination notice in this split. It also does not evaluate OCR or document
+extraction.
+
+Some misses exposed coverage gaps beyond the sentence and line wrapping
+changes. A real provider can identify itself by name instead of “we” in a
+no-notice amendment. Three broad content grants use provider names or
+alternative license wording. An arbitration term may contain class and jury
+restrictions in the same sentence, and the current overlap policy can choose
+the waivers without emitting a separate arbitration rule ID. Misclassifying a
+class bar as a class waiver counts as one additional rule and one missed rule.
+
+Run against the original, checksum-pinned test CSV from the linked deposit:
+
+```sh
+cargo build --release --manifest-path engine/Cargo.toml --bin evaluate
+python3 scripts/evaluate-exact-rules.py /path/to/tos-100/test.csv engine/target/release/evaluate
+```
+
+The script compares scored rule IDs only. The review classifier and the
+published ToS-100 broad labels do not set expected results for this panel.
+The panel was kept separate from rule authoring and model training.

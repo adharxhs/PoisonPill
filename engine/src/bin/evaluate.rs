@@ -10,6 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let findings = analyze(&text);
         let candidates = review::candidates(&text, &findings);
         let response = serde_json::json!({
+            "rule_ids": findings.iter().map(|finding| &finding.rule_id).collect::<Vec<_>>(),
             "rules": findings.iter().map(|finding| &finding.category).collect::<Vec<_>>(),
             "candidates": candidates.iter().map(|candidate| candidate.category).collect::<Vec<_>>(),
         });

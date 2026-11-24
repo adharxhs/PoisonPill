@@ -1,0 +1,36 @@
+row	provider	expected_rules	rationale
+19	imgur	intellectual_property.perpetual_commercial_license	Upload grants perpetual royalty-free sublicensing and broad onward use.
+23	imgur	-	User permission limited to personal purposes.
+69	imgur	unilateral_modification.without_notice	Provider can revise the terms with explicit absence of notice.
+85	Pokemon	-	Change concerns the services rather than the agreement.
+86	Pokemon	forced_arbitration.mandatory_arbitration,forced_arbitration.class_action_waiver,forced_arbitration.jury_trial_waiver	Binding arbitration and two distinct waivers; limited opt-out or dispute exceptions do not make arbitration generally voluntary.
+111	Pokemon	-	Provider grants a limited personal app license to the user.
+134	Pokemon	-	License for using content in operating and providing the services.
+227	Pokemon	-	Immediate provider action without a stated customer notice burden.
+248	Pokemon	forced_arbitration.class_action_waiver,forced_arbitration.jury_trial_waiver	Express class and jury waivers unless the customer opts out.
+297	Grammarly	forced_arbitration.mandatory_arbitration	Explicit requirement to submit claims to binding arbitration.
+298	Grammarly	forced_arbitration.class_action_bar,forced_arbitration.jury_trial_waiver	Class participation barred and jury right waived.
+352	Grammarly	-	Fee changes come with advance notice.
+385	Grammarly	-	Provider gives notice; there is no immediate provider versus customer-notice contrast.
+446	Grammarly	liability_caps.provider_paid_fees	Aggregate provider liability capped by what the customer already paid.
+453	Grammarly	-	Description naming the section, without a requirement.
+454	Grammarly	forced_arbitration.mandatory_arbitration	Exclusive arbitration for covered claims, with a small-claims exception.
+456	Grammarly	forced_arbitration.class_action_waiver,forced_arbitration.jury_trial_waiver	Bilateral wording expressly includes the customer's class and jury waivers.
+627	Twitch	-	Describes interaction with advertisers rather than granting a data disclosure right.
+634	Twitch	indemnification.provider_defense_costs	User defends the provider for broad claims and legal costs.
+653	Twitch	forced_arbitration.mandatory_arbitration	Agreement to arbitrate disputes generally, with a subject-specific exception.
+660	Twitch	forced_arbitration.class_action_bar	Customer and provider cannot commence class proceedings.
+801	Badoo	-	Service modification rather than amendment of the agreement.
+941	Zara	-	Amendment possible; no express denial of prior notice.
+1257	Zara	-	No-notice change to wallet functionality rather than contract terms.
+1376	eBay	intellectual_property.perpetual_commercial_license	Perpetual royalty-free sublicensing with service expansion and promotion as permitted uses.
+1452	eBay	-	Multiple alternative limits; potentially higher fixed floor rather than an aggregate cap at fees paid.
+1460	eBay	forced_arbitration.mandatory_arbitration	Mandatory final and binding arbitration.
+1512	eBay	-	Advance notice promised for amendments.
+1674	eDreams	unilateral_modification.without_notice	Provider may amend the terms and conditions without prior notice.
+1849	Foursquare	-	Immediate provider termination but no corresponding customer notice requirement.
+1870	Foursquare	-	Liability limit based on a fixed sum rather than fees paid.
+1955	Syncme	intellectual_property.perpetual_commercial_license	Non-revocable royalty-free sublicensing to promote the provider's business.
+1975	Syncme	-	Mentions advertisers without a grant to disclose user data.
+1992	Syncme	forced_arbitration.mandatory_arbitration	Complaints finally settled by binding arbitration.
+2002	Syncme	forced_arbitration.class_action_bar	Express restriction on class action and class-wide arbitration.
