@@ -422,6 +422,24 @@ pub const BUILTIN_RULES: &[RuleSpec] = ARBITRATION_RULES;
 mod tests {
     use super::*;
 
+    #[test]
+    fn binding_arbitration_matches_wrapped_words() {
+        let text = "Café disputes shall go to BINDING\u{a0}\narbitration.";
+        let found = first_match(&RuleRegistry::builtin(), text).expect("wrapped phrase");
+        assert!(found.spans.iter().any(|&(start, end)| {
+            &text[start..end] == "BINDING\u{a0}\narbitration"
+        }));
+    }
+
+    #[test]
+    fn binding_arbitration_respects_token_boundaries() {
+        assert!(first_match(
+            &RuleRegistry::builtin(),
+            "Disputes about nonbinding arbitration remain eligible for court."
+        )
+        .is_none());
+    }
+
     fn first_match(registry: &RuleRegistry, text: &str) -> Option<RuleMatch> {
         registry.matches(text).into_iter().next()
     }
