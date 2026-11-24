@@ -325,7 +325,7 @@ function renderRecord(record?: ScanRecord): void {
   gaugeMedia = undefined;
   currentRecord = record;
   if (downloadButton) downloadButton.disabled = !record;
-  for (const id of ['none', 'summary', 'empty', 'truncated']) {
+  for (const id of ['none', 'summary', 'empty', 'truncated', 'comparison']) {
     document.getElementById(id)?.setAttribute('hidden', '');
   }
   const container = document.getElementById('report');
@@ -361,6 +361,12 @@ function renderRecord(record?: ScanRecord): void {
   show('summary');
 
   if (report.truncated) show('truncated');
+  if (record.comparison) {
+    const previous = record.comparison;
+    const text = previous.visible_text_changed ? 'Visible text changed.' : 'Visible text matched.';
+    setText('comparison', `${text} Compared with the previous complete scan: ${previous.findings_added} findings added, ${previous.findings_removed} removed.`);
+    show('comparison');
+  }
 
   if (report.findings.length === 0) {
     show('empty');

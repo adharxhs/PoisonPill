@@ -77,9 +77,9 @@ correct; the tag promises the mechanism and one authored category, not coverage.
     from a finding with linked opt-out evidence. A direct mail action remains
     optional product work.
 
-13. **Scan history and comparison.** More than one `last_scan`, with a diff view
-    across versions of the same URL. Store digests and offsets, not full contract
-    text, and handle `chrome.storage.local` quota explicitly.
+13. **Browsable scan history.** The popup and PDF compare a complete scan with
+    the previous SHA-256 baseline for the same page. A browsable timeline and
+    clause-by-clause diff remain open.
 
 14. **SHA-256 tree-diff audit memory.** Explicitly out of this base. If added,
     digest clause text and offsets under `chrome.storage.local`; never store the

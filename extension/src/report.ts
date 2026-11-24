@@ -122,6 +122,10 @@ export function buildPdf(
     ? 'Coverage: partial. The scan reached the input limit and analysed only the first part of the visible text.'
     : 'Coverage: visible text extracted from the page at scan time. Linked documents, PDF viewers and embedded frames may be outside the scan.');
   paragraph('This report flags contractual wording for review. Whether a term applies or can be challenged depends on the agreement you accepted, the facts, the jurisdiction and applicable deadlines.');
+  if (record.comparison) {
+    const previous = record.comparison;
+    paragraph(`Compared with the previous complete scan (${previous.previous_scanned_at}): visible text ${previous.visible_text_changed ? 'changed' : 'matched'}. Findings added: ${previous.findings_added}. Findings removed: ${previous.findings_removed}.`);
+  }
   if (report.findings.length === 0) paragraph('The supported rules produced no findings in the scanned text.');
 
   for (const [index, finding] of report.findings.entries()) {

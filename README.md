@@ -40,7 +40,8 @@ Node alone; Rust is needed only to change detection logic.
 
 ## What it deliberately does not do
 
-In-page highlighting, jump-to-clause, scan history, and SHA-256 tree-diff memory.
+In-page highlighting, jump-to-clause, and a browsable scan history. Complete
+scans can compare visible text and findings with a saved SHA-256 baseline.
 The popup displays the last report and can prepare an editable arbitration
 opt-out draft when it has the source wording. See [`docs/BACKLOG.md`](docs/BACKLOG.md).
 

@@ -11,6 +11,8 @@
 // top level; the Wasm module itself is instantiated lazily on first use.
 // Everything stays on the extension origin; nothing is fetched from the network.
 
+import { compareScan } from './audit';
+
 import type {
   AnalyzeResponse,
   DocumentReport,
@@ -101,9 +103,16 @@ async function run(request: WorkerRequest): Promise<DocumentReport> {
   }
 }
 
-async function handle(request: WorkerRequest): Promise<WorkerResponse> {
+async function handle(request: WorkerRequest, pageUrl?: string): Promise<WorkerResponse> {
   try {
-    return { type: 'ANALYSIS_RESULT', report: await run(request) };
+    const report = await run(request);
+    if (request.type === 'ANALYZE_TEXT' && request.input_truncated === true) {
+      report.truncated = true;
+    }
+    const comparison = request.type === 'ANALYZE_TEXT' && pageUrl
+      ? await compareScan(pageUrl, request.text, report).catch(() => undefined)
+      : undefined;
+    return { type: 'ANALYSIS_RESULT', report, comparison };
   } catch (error: unknown) {
     return { type: 'ANALYSIS_ERROR', error: toEngineError(error) };
   }
@@ -124,7 +133,7 @@ chrome.runtime.onMessage.addListener(
     if (sender.id !== chrome.runtime.id || !isWorkerRequest(message)) {
       return false;
     }
-    void handle(message).then(sendResponse);
+    void handle(message, sender.tab ? sender.url : undefined).then(sendResponse);
     return true; // keep the channel open for the async response
   },
 );

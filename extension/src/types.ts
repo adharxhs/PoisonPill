@@ -52,16 +52,25 @@ export type AnalyzeResponse =
   | { status: 'ok'; report: DocumentReport }
   | { status: 'error'; error: EngineError };
 
+export interface ScanComparison {
+  previous_scanned_at: string;
+  visible_text_changed: boolean;
+  findings_added: number;
+  findings_removed: number;
+}
+
 /** Persisted under `chrome.storage.local["last_scan"]` for the popup. */
 export interface ScanRecord {
   url: string;
   scanned_at: string;
+  comparison?: ScanComparison;
   report: DocumentReport;
 }
 
 export interface AnalyzeRequest {
   type: 'ANALYZE_TEXT';
   text: string;
+  input_truncated?: boolean;
 }
 
 /** Returns a bundled report so UI work needs no Wasm build. */
@@ -74,6 +83,7 @@ export type WorkerRequest = AnalyzeRequest | PlaybackRequest;
 export interface AnalysisResult {
   type: 'ANALYSIS_RESULT';
   report: DocumentReport;
+  comparison?: ScanComparison;
 }
 
 export interface AnalysisError {

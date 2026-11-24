@@ -22,7 +22,7 @@ async function scan(minimumLength: number): Promise<ScanRecord> {
 
   const sequence = ++scanSequence;
   const url = location.href;
-  const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text };
+  const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: text.length < visibleText.length };
   const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
   if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
   if (sequence !== scanSequence || location.href !== url) {
@@ -32,6 +32,7 @@ async function scan(minimumLength: number): Promise<ScanRecord> {
   const record: ScanRecord = {
     url,
     scanned_at: new Date().toISOString(),
+    comparison: response.comparison,
     report: {
       ...response.report,
       truncated: response.report.truncated || text.length < visibleText.length,

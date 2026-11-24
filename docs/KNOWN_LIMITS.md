@@ -42,14 +42,11 @@ enforceable, or whether local law voids it. Hard negatives reduce obvious
 false positives (provider waivers, compliance boilerplate, descriptive mentions,
 quoted text, "does not waive") but cannot cover every paraphrase.
 
-### One finding per category per clause
+### Overlapping rules
 
-A category contributes at most one finding per sentence; the first matching rule
-in registry order wins. In `01-online-course-terms.txt` the sentence "You and the
-company each waive the right to a jury trial and the right to participate in a
-class action" reports `class_action_waiver` only. The jury waiver in the same
-sentence is real but not represented. Separate sentences in
-`11-subscription-bullets.txt` report both.
+Distinct class and jury waivers can both be reported in one sentence. Scoring
+counts their shared category once for that sentence. Other overlapping matches
+in the same category still resolve in registry order.
 
 ### `court_access_waiver` and `class_action_bar` recall is dev-set only
 
@@ -80,17 +77,13 @@ and transfers without a named advertising purpose can escape detection.
 
 ## Opt-out
 
-### Block-bounded association
+### Bounded opt-out association
 
-An opt-out clause still needs an action and a window in one sentence. Since
-decision 16 a finding may borrow the opt-out of a clause up to three sentences
-away in the same block (no blank line between them), unless that clause names a
-foreign subject (marketing, cookies, personal data, …) or the neighbourhood
-offers two different addresses. Held-out `01`, `04`, `09` and `14` now report
-the opt-out. Still missed: an opt-out in a separate section after a heading and a
-blank line, one more than three sentences away, and one whose subject is only
-implied by a heading. The foreign/dispute subject lists are lexicon data with the
-same substring limits as every other list.
+An opt-out clause needs an action and a window in one sentence. Arbitration
+findings can borrow an opt-out within three sentences of the same block, subject
+to competing address and scope checks. An immediately following, explicitly
+named arbitration opt-out heading can bridge one block boundary. Other headings,
+longer distances, and split action and deadline wording can still escape detection.
 
 ### Action plus window, or nothing
 
@@ -145,7 +138,9 @@ is a native test, not a Wasm profile in Chrome.
 
 ## Product surface
 
-The reference shell deliberately shows a plain list of the last report. There is
-no highlighting, badge, shield, jump-to-clause, history, comparison, theming, or
-audit memory. Those are product features listed in [`BACKLOG.md`](BACKLOG.md);
-their absence is not a defect of the contract.
+The popup shows the last report, supports manual refresh, exports a local PDF,
+and can draft an arbitration opt-out. Complete scans can compare against a
+previous local SHA-256 fingerprint for the same page. Comparison reports exact
+visible-text changes and counts changed findings. Navigation or other unrelated
+page text can change the fingerprint. Historical document text, in-page
+highlights, and automatic rescans are outside this implementation.

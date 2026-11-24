@@ -87,6 +87,10 @@ resolved in this order:
 4. If the remaining candidates name more than one distinct address, the
    association is ambiguous: `opt_out_available` is `false`.
 
+An immediately following arbitration opt-out heading can supply the clause
+across a block break if no eligible in-block source competes. The reason names
+the heading when this happens.
+
 A neighbouring association appends `; opt-out stated in a neighbouring clause of
 the same block` to `reason`, so the claim is always explainable from the report.
 The field shapes did not change, so `schema_version` stays `"1.0"`.
@@ -158,6 +162,20 @@ interface ScanRecord {
   report: DocumentReport;
 }
 ```
+
+## Local scan comparison
+
+The service worker keeps up to 24 complete page baselines. Each uses a
+SHA-256 digest of the page identity, the extracted text, and the rule and
+clause text for each finding. Only digests and the timestamp are retained in
+the comparison store. The last scan can include the prior baseline timestamp,
+whether extracted text changed, and added/removed finding counts. Partial
+reports and scans with more than 250 findings skip comparison. This comparison
+reports changes in scanned wording rather than a legal conclusion.
+
+A class waiver and jury waiver can produce separate findings for one sentence.
+Their shared category contributes to the score once, using the first finding
+in registry order for the same byte range.
 
 ## Determinism
 
