@@ -35,6 +35,14 @@ pub enum InversionShape {
     ComplianceThenCarveOut,
 }
 
+/// Exact UTF-8 source slice contributing to a finding.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct SourceExcerpt {
+    pub start_offset: usize,
+    pub end_offset: usize,
+    pub text: String,
+}
+
 /// One flagged clause. Offsets are byte offsets into the exact input string
 /// passed to the engine, always on UTF-8 character boundaries.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -61,6 +69,10 @@ pub struct ClauseFinding {
     pub inversion: InversionShape,
     /// One sentence explaining why the rule fired, built from matched data.
     pub reason: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<SourceExcerpt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opt_out_source: Option<SourceExcerpt>,
 }
 
 /// Full analysis result. Findings are ordered by `start_offset`, then by the
@@ -150,6 +162,8 @@ mod tests {
             opt_out_target: None,
             inversion: InversionShape::None,
             reason: "test".into(),
+            evidence: vec![],
+            opt_out_source: None,
         };
         let value = serde_json::to_value(&finding).unwrap();
         assert!(value.get("opt_out_target").is_none());

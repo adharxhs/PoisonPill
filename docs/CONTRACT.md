@@ -29,6 +29,12 @@ by the deterministic order of rules in the registry.
 | `inversion` | see below | Effect of exception markers on this clause. |
 | `reason` | string | One sentence explaining which matched data made the rule fire. |
 
+Optional `evidence` includes original matched text and UTF-8 byte ranges.
+`opt_out_source`, when present, carries the complete source clause for the
+associated opt-out with the same range format. Existing stored reports can
+omit both fields. The popup accepts those reports and Refresh report replaces
+them with the latest scan.
+
 ### Offsets
 
 Offsets are **UTF-8 byte offsets**, always on character boundaries. They index the

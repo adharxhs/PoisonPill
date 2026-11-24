@@ -77,6 +77,8 @@ mod tests {
             opt_out_target: None,
             inversion: InversionShape::None,
             reason: "test".into(),
+            evidence: vec![],
+            opt_out_source: None,
         }
     }
 

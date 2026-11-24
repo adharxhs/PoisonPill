@@ -8,9 +8,9 @@ use wasm_bindgen::prelude::*;
 
 use crate::exceptions::classify;
 use crate::model::{
-    AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SCHEMA_VERSION,
+    AnalyzeResponse, ClauseFinding, DocumentReport, InversionShape, SourceExcerpt, SCHEMA_VERSION,
 };
-use crate::optout::{associate, inspect as inspect_opt_out, Association};
+use crate::optout::{associate_with_source, inspect as inspect_opt_out, Association};
 use crate::rules::{RuleMatch, RuleRegistry, ARBITRATION_CATEGORY};
 use crate::scoring::poison_index;
 use crate::tokenizer::{sentences, Sentence};
@@ -108,16 +108,16 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
             emitted_categories.push(rule_match.category_id);
 
             // The existing association heuristics resolve dispute opt-outs.
-            let association = if rule_match.category_id == ARBITRATION_CATEGORY {
+            let (association, opt_out_index) = if rule_match.category_id == ARBITRATION_CATEGORY {
                 let facts = opt_out_facts.get_or_insert_with(|| {
                     clauses
                         .iter()
                         .map(|sentence| inspect_opt_out(sentence.text))
                         .collect::<Vec<_>>()
                 });
-                associate(facts, &blocks, index)
+                associate_with_source(facts, &blocks, index)
             } else {
-                Association::None
+                (Association::None, None)
             };
             let opt_out = association.opt_out();
             findings.push(ClauseFinding {
@@ -133,6 +133,15 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
                 opt_out_target: opt_out.target,
                 inversion,
                 reason: reason_for(&rule_match, inversion, &association),
+                evidence: rule_match
+                    .spans
+                    .iter()
+                    .map(|&(start, end)| {
+                        excerpt(input, sentence.start + start, sentence.start + end)
+                    })
+                    .collect(),
+                opt_out_source: opt_out_index
+                    .map(|source| excerpt(input, clauses[source].start, clauses[source].end)),
             });
         }
     }
@@ -142,6 +151,14 @@ pub fn analyze_with(registry: &RuleRegistry, raw_text: &str) -> DocumentReport {
         poison_index: poison_index(&findings),
         findings,
         truncated,
+    }
+}
+
+fn excerpt(input: &str, start_offset: usize, end_offset: usize) -> SourceExcerpt {
+    SourceExcerpt {
+        start_offset,
+        end_offset,
+        text: input[start_offset..end_offset].to_string(),
     }
 }
 
@@ -360,6 +377,8 @@ mod tests {
             opt_out_target: None,
             inversion: InversionShape::None,
             reason: "test".into(),
+            evidence: vec![],
+            opt_out_source: None,
         };
         let many = vec![finding; 40];
         assert_eq!(poison_index(&many), 100.0);

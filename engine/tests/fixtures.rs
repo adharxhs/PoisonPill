@@ -107,6 +107,20 @@ fn findings_slice_their_input_and_match_expectations() {
                     finding.raw_text,
                     "{label}: raw_text does not slice the input"
                 );
+
+                assert!(!finding.evidence.is_empty(), "{label}: missing evidence");
+                for excerpt in finding.evidence.iter().chain(&finding.opt_out_source) {
+                    assert_eq!(
+                        text.get(excerpt.start_offset..excerpt.end_offset),
+                        Some(excerpt.text.as_str()),
+                        "{label}: evidence does not slice the input"
+                    );
+                }
+                assert_eq!(
+                    finding.opt_out_available,
+                    finding.opt_out_source.is_some(),
+                    "{label}: opt-out source and availability disagree"
+                );
             }
 
             match class {

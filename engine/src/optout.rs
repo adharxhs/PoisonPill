@@ -96,31 +96,39 @@ impl Association {
 ///
 /// `facts` and `blocks` are parallel per-clause arrays.
 pub fn associate(facts: &[ClauseOptOut], blocks: &[usize], index: usize) -> Association {
+    associate_with_source(facts, blocks, index).0
+}
+
+pub(crate) fn associate_with_source(
+    facts: &[ClauseOptOut],
+    blocks: &[usize],
+    index: usize,
+) -> (Association, Option<usize>) {
     let Some(own) = facts.get(index) else {
-        return Association::None;
+        return (Association::None, None);
     };
     if own.opt_out.available {
-        return Association::InClause(own.opt_out.clone());
+        return (Association::InClause(own.opt_out.clone()), Some(index));
     }
     let Some(&block) = blocks.get(index) else {
-        return Association::None;
+        return (Association::None, None);
     };
 
     let low = index.saturating_sub(ASSOCIATION_WINDOW);
     let high = (index + ASSOCIATION_WINDOW).min(facts.len().saturating_sub(1));
-    let candidates: Vec<&ClauseOptOut> = (low..=high)
+    let candidates: Vec<(usize, &ClauseOptOut)> = (low..=high)
         .filter(|&other| other != index && blocks.get(other) == Some(&block))
-        .filter_map(|other| facts.get(other))
-        .filter(|fact| fact.opt_out.available && !fact.foreign_subject)
+        .filter_map(|other| facts.get(other).map(|fact| (other, fact)))
+        .filter(|(_, fact)| fact.opt_out.available && !fact.foreign_subject)
         .collect();
     if candidates.is_empty() {
-        return Association::None;
+        return (Association::None, None);
     }
 
-    let specific: Vec<&ClauseOptOut> = candidates
+    let specific: Vec<(usize, &ClauseOptOut)> = candidates
         .iter()
         .copied()
-        .filter(|fact| fact.dispute_subject)
+        .filter(|(_, fact)| fact.dispute_subject)
         .collect();
     let chosen = if specific.is_empty() {
         candidates
@@ -129,19 +137,26 @@ pub fn associate(facts: &[ClauseOptOut], blocks: &[usize], index: usize) -> Asso
     };
 
     let mut target: Option<&str> = None;
-    for fact in &chosen {
+    for (_, fact) in &chosen {
         if let Some(address) = fact.opt_out.target.as_deref() {
             match target {
-                Some(existing) if existing != address => return Association::None,
+                Some(existing) if existing != address => return (Association::None, None),
                 _ => target = Some(address),
             }
         }
     }
 
-    Association::Neighbour(OptOut {
-        available: true,
-        target: target.map(str::to_string),
-    })
+    let source = chosen
+        .iter()
+        .find(|(_, fact)| fact.opt_out.target.as_deref() == target)
+        .map(|(source, _)| *source);
+    (
+        Association::Neighbour(OptOut {
+            available: true,
+            target: target.map(str::to_string),
+        }),
+        source,
+    )
 }
 
 fn any_phrase(text: &str, phrases: &[&str]) -> bool {
