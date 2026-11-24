@@ -14,8 +14,8 @@ Matching uses ASCII-case-insensitive phrase lists in `engine/src/lexicon.rs`.
 Mandatory arbitration and no-notice modification use whole-word phrases
 with flexible whitespace and hyphenation. Other predicates can match
 substrings. If a predatory clause is phrased with words that are not
-in those lists, it does not fire. There is no stemming, no lemmatisation, and no
-semantic model.
+in those lists, it does not fire. The scored rules use a limited grammar and lexicons. The optional review model
+uses n-grams and can suggest unfamiliar wording.
 
 Visible consequence at `v0.1.0-base`: `06-marketplace-terms.txt` said a dispute
 "shall be settled by arbitration" and produced no finding. The phrase has since
@@ -58,12 +58,14 @@ both, partly because the clauses there that mention court are either descriptive
 or already claimed by an earlier rule in the same category (one finding per
 category per clause). Treat their real-world recall as plausible, not measured.
 
-### Precision and recall are unmeasured
+### Benchmark scope
 
-The regression corpus is curated, not sampled. It proves invariants and guards
-against regressions; it is not a precision/recall estimate. No labelled
-population of real contracts has been scored, so no accuracy percentage is
-quoted anywhere in these docs.
+A provider-separated ToS-100 benchmark measures agreement with four overlapping
+labels. General real-world precision and recall for the full taxonomy remain
+unmeasured. The corpus is pre-tokenized, several benchmark labels have broader
+scope than the rules, and the review model can suggest false positives.
+[Measurements](MEASUREMENTS.md#provider-separated-tos-100-review-experiment)
+records the counts and split procedure.
 
 ### Category coverage
 

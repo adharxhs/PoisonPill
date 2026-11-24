@@ -14,7 +14,7 @@ function looksLegal(): boolean {
   );
 }
 
-async function scan(minimumLength: number): Promise<ScanRecord> {
+async function scan(minimumLength: number, review = false): Promise<ScanRecord> {
   const visibleText = document.body?.innerText ?? '';
   let text = visibleText.slice(0, MAX_CHARS);
   // Avoid cutting a UTF-16 surrogate pair before passing text to Wasm.
@@ -23,7 +23,7 @@ async function scan(minimumLength: number): Promise<ScanRecord> {
 
   const sequence = ++scanSequence;
   const url = location.href;
-  const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: text.length < visibleText.length };
+  const request: AnalyzeRequest = { type: 'ANALYZE_TEXT', text, input_truncated: text.length < visibleText.length, review };
   const response = await chrome.runtime.sendMessage<AnalyzeRequest, WorkerResponse>(request);
   if (response?.type !== 'ANALYSIS_RESULT') throw new Error('The local engine could not analyse this page.');
   if (sequence !== scanSequence || location.href !== url) {
@@ -34,6 +34,7 @@ async function scan(minimumLength: number): Promise<ScanRecord> {
     url,
     scanned_at: new Date().toISOString(),
     comparison: response.comparison,
+    review_candidates: response.review_candidates,
     report: {
       ...response.report,
       truncated: response.report.truncated || text.length < visibleText.length,
@@ -80,8 +81,8 @@ chrome.runtime.onMessage.addListener(
       respond(jumpToClause(message));
       return false;
     }
-    if (message !== 'REFRESH_PAGE_REPORT') return false;
-    void scan(1).then(
+    if (message !== 'REFRESH_PAGE_REPORT' && message !== 'REVIEW_PAGE_REPORT') return false;
+    void scan(1, message === 'REVIEW_PAGE_REPORT').then(
       (record) => respond({ status: 'ok', record }),
       (error: unknown) => respond({
         status: 'error',

@@ -15,6 +15,11 @@ export interface SourceExcerpt {
   text: string;
 }
 
+export interface ReviewCandidate {
+  category: string;
+  source: SourceExcerpt;
+}
+
 export interface ClauseFinding {
   category: string;
   label: string;
@@ -64,6 +69,7 @@ export interface ScanRecord {
   url: string;
   scanned_at: string;
   comparison?: ScanComparison;
+  review_candidates?: ReviewCandidate[];
   report: DocumentReport;
 }
 
@@ -71,6 +77,7 @@ export interface AnalyzeRequest {
   type: 'ANALYZE_TEXT';
   text: string;
   input_truncated?: boolean;
+  review?: boolean;
 }
 
 /** Returns a bundled report so UI work needs no Wasm build. */
@@ -84,6 +91,7 @@ export interface AnalysisResult {
   type: 'ANALYSIS_RESULT';
   report: DocumentReport;
   comparison?: ScanComparison;
+  review_candidates?: ReviewCandidate[];
 }
 
 export interface AnalysisError {

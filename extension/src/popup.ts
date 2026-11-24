@@ -339,6 +339,7 @@ function animateScore(value: number, index: number): void {
 let currentRecord: ScanRecord | undefined;
 let refreshed = false;
 const refreshButton = document.querySelector<HTMLButtonElement>('#refresh');
+const reviewButton = document.querySelector<HTMLButtonElement>('#review');
 const downloadButton = document.querySelector<HTMLButtonElement>('#download');
 
 function status(message: string): void {
@@ -349,10 +350,45 @@ function status(message: string): void {
   }
 }
 
+const REVIEW_LABELS: Record<string, string> = {
+  forced_arbitration: 'Dispute resolution or arbitration',
+  unilateral_modification: 'Unilateral modification',
+  liability_caps: 'Limits on liability',
+  termination_asymmetry: 'Termination rights',
+};
+
+function renderCandidates(record?: ScanRecord): void {
+  const section = document.getElementById('candidates');
+  if (!section) return;
+  section.replaceChildren();
+  const candidates = record?.review_candidates;
+  section.hidden = !candidates;
+  if (!candidates) return;
+  section.append(el('h2', undefined, 'Possible clauses for review'));
+  section.append(el('p', 'blurb',
+    'Up to 25 experimental suggestions are shown. Review the quoted text in context. These suggestions do not affect the Poison Index or the PDF findings.',
+  ));
+  if (!candidates.length) {
+    section.append(el('p', undefined, 'The model suggested no additional clauses.'));
+    return;
+  }
+  const list = el('ol');
+  for (const candidate of candidates) {
+    const item = el('li', 'finding');
+    item.append(
+      el('strong', undefined, REVIEW_LABELS[candidate.category] ?? candidate.category),
+      el('blockquote', undefined, candidate.source.text),
+    );
+    list.append(item);
+  }
+  section.append(list);
+}
+
 function renderRecord(record?: ScanRecord): void {
   gaugeMedia?.revert();
   gaugeMedia = undefined;
   currentRecord = record;
+  renderCandidates(record);
   if (downloadButton) downloadButton.disabled = !record;
   for (const id of ['none', 'summary', 'empty', 'truncated', 'comparison']) {
     document.getElementById(id)?.setAttribute('hidden', '');
@@ -406,27 +442,32 @@ function renderRecord(record?: ScanRecord): void {
   container?.querySelectorAll<HTMLElement>('blockquote.clamped').forEach(makeExpandable);
 }
 
-refreshButton?.addEventListener('click', async () => {
-  refreshButton.disabled = true;
+async function refreshReport(review = false): Promise<void> {
+  if (refreshButton) refreshButton.disabled = true;
+  if (reviewButton) reviewButton.disabled = true;
   if (downloadButton) downloadButton.disabled = true;
-  status('Scanning the current page…');
+  status(review ? 'Scanning for possible clauses…' : 'Scanning the current page…');
   try {
     const result = await chrome.tabs.sendMessage<string, PageScanResponse>(
-      await activeTabId(), 'REFRESH_PAGE_REPORT', { frameId: 0 },
+      await activeTabId(), review ? 'REVIEW_PAGE_REPORT' : 'REFRESH_PAGE_REPORT', { frameId: 0 },
     ).catch(() => {
       throw new Error('This page cannot receive a scan. Reopen it if the extension was just updated.');
     });
     if (result.status === 'error') throw new Error(result.message);
     refreshed = true;
     renderRecord(result.record);
-    status('Report refreshed.');
+    status(review ? 'Review scan complete.' : 'Report refreshed.');
   } catch (error: unknown) {
     status(error instanceof Error ? error.message : 'The report could not be refreshed.');
   } finally {
-    refreshButton.disabled = false;
+    if (refreshButton) refreshButton.disabled = false;
+    if (reviewButton) reviewButton.disabled = false;
     if (downloadButton) downloadButton.disabled = !currentRecord;
   }
-});
+}
+
+refreshButton?.addEventListener('click', () => void refreshReport());
+reviewButton?.addEventListener('click', () => void refreshReport(true));
 
 downloadButton?.addEventListener('click', () => {
   if (!currentRecord) return;

@@ -163,6 +163,15 @@ interface ScanRecord {
 }
 ```
 
+## Optional review
+
+`analyzeReviewJson` returns a pair containing the standard response envelope
+and up to 25 model suggestions. Each suggestion has a category and a
+`source` excerpt with original UTF-8 byte offsets. A category already
+reported by a rule for the same sentence is omitted from suggestions. The
+popup stores these separately as `review_candidates` after an explicit
+review request. The score and PDF findings come from the rule response.
+
 ## Local scan comparison
 
 The service worker keeps up to 24 complete page baselines. Each uses a

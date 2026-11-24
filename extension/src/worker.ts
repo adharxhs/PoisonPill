@@ -17,12 +17,14 @@ import type {
   AnalyzeResponse,
   DocumentReport,
   EngineError,
+  ReviewCandidate,
   WorkerRequest,
   WorkerResponse,
 } from './types';
 
 interface LegalEngine {
   analyzeJson(text: string): string;
+  analyzeReviewJson(text: string): string;
 }
 
 declare function importScripts(...urls: string[]): void;
@@ -105,14 +107,26 @@ async function run(request: WorkerRequest): Promise<DocumentReport> {
 
 async function handle(request: WorkerRequest, pageUrl?: string): Promise<WorkerResponse> {
   try {
-    const report = await run(request);
+    let report: DocumentReport;
+    let reviewCandidates: ReviewCandidate[] | undefined;
+    if (request.type === 'ANALYZE_TEXT' && request.review === true) {
+      const engine = await loadEngine();
+      const review: unknown = JSON.parse(engine.analyzeReviewJson(request.text));
+      if (!Array.isArray(review) || review.length !== 2 || !Array.isArray(review[1])) {
+        throw new Error('engine returned a malformed review result');
+      }
+      report = unwrap(parseEnvelope(review[0]));
+      reviewCandidates = review[1] as ReviewCandidate[];
+    } else {
+      report = await run(request);
+    }
     if (request.type === 'ANALYZE_TEXT' && request.input_truncated === true) {
       report.truncated = true;
     }
     const comparison = request.type === 'ANALYZE_TEXT' && pageUrl
       ? await compareScan(pageUrl, request.text, report).catch(() => undefined)
       : undefined;
-    return { type: 'ANALYSIS_RESULT', report, comparison };
+    return { type: 'ANALYSIS_RESULT', report, comparison, review_candidates: reviewCandidates };
   } catch (error: unknown) {
     return { type: 'ANALYSIS_ERROR', error: toEngineError(error) };
   }
