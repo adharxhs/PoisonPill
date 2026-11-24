@@ -1,5 +1,6 @@
 import { getDocument, GlobalWorkerOptions, VerbosityLevel } from 'pdfjs-dist';
 import { buildPdf, reportFilename } from './report';
+import { renderFindings, renderScore, resetScoreAnimation, setText } from './report-view';
 import type { AnalyzeRequest, ScanRecord, WorkerResponse } from './types';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -58,19 +59,21 @@ async function extract(file: File): Promise<{ text: string; truncated: boolean }
 }
 
 const fileInput = document.querySelector<HTMLInputElement>('#file');
-const status = document.querySelector('#status');
+const status = document.querySelector<HTMLElement>('#status');
 const result = document.querySelector<HTMLElement>('#result');
-const summary = document.querySelector('#summary');
-const list = document.querySelector('#findings');
+const empty = document.querySelector<HTMLElement>('#empty');
+const findingsView = document.querySelector<HTMLElement>('#report');
 const download = document.querySelector<HTMLButtonElement>('#download');
 let record: ScanRecord | undefined;
 
-if (fileInput && status && result && summary && list && download) {
+if (fileInput && status && result && empty && download) {
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
     fileInput.disabled = true;
+    resetScoreAnimation();
     result.hidden = true;
+    status.removeAttribute('data-tone');
     status.textContent = 'Reading and scanning this PDF…';
     record = undefined;
     try {
@@ -86,20 +89,20 @@ if (fileInput && status && result && summary && list && download) {
         scanned_at: new Date().toISOString(),
         report: response.report,
       };
-      const findings = record.report.findings;
-      summary.textContent = `${findings.length} ${findings.length === 1 ? 'term' : 'terms'} to review`;
-      list.replaceChildren(...findings.map((finding) => {
-        const row = document.createElement('li');
-        const heading = document.createElement('strong');
-        heading.textContent = finding.label;
-        const quote = document.createElement('blockquote');
-        quote.textContent = finding.raw_text;
-        row.append(heading, quote);
-        return row;
-      }));
-      status.textContent = record.report.truncated ? 'Scan complete. Only the first part of the PDF was scanned.' : 'Scan complete.';
+      const { findings, poison_index, truncated: partial } = record.report;
+      const count = findings.length;
+      const summary = `Scan complete. ${count} ${count === 1 ? 'term' : 'terms'} to review.`;
+      status.textContent = partial ? `${summary} Only the first part of the PDF was scanned.` : summary;
+      if (partial) status.dataset.tone = 'partial';
+      setText('source-name', sourceName);
+      const source = document.getElementById('source-name');
+      if (source) source.title = sourceName;
+      empty.hidden = count !== 0;
       result.hidden = false;
+      renderScore(poison_index, record.scanned_at);
+      renderFindings(findingsView, findings);
     } catch (error: unknown) {
+      status.dataset.tone = 'error';
       status.textContent = error instanceof Error ? error.message : 'The PDF could not be scanned.';
     } finally {
       fileInput.value = '';
@@ -111,6 +114,7 @@ if (fileInput && status && result && summary && list && download) {
     try {
       buildPdf(record).save(reportFilename(record));
     } catch {
+      status.dataset.tone = 'error';
       status.textContent = 'The PDF report could not be generated.';
     }
   });
