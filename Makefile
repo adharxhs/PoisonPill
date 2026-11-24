@@ -69,7 +69,8 @@ test:
 
 ## Size and latency budgets. Release mode is required for the latency number.
 budget: engine
-	cargo test --release --manifest-path $(ENGINE_DIR)/Cargo.toml --test budgets -- --ignored --nocapture
+	# Match the test harness panic strategy so Cargo builds one native library.
+	CARGO_PROFILE_RELEASE_PANIC=unwind cargo test --release --manifest-path $(ENGINE_DIR)/Cargo.toml --test budgets -- --ignored --nocapture
 	./scripts/check-size.sh $(WASM_ARTIFACT)
 
 ## Regenerate golden reports from the native engine. Review the diff: tests never
