@@ -24,19 +24,23 @@ const SEVERE: BandInfo = {
   band: 'severe',
   below: Infinity,
   label: 'Severe risk',
-  verdict: 'This agreement heavily restricts your legal rights.',
+  verdict: 'The scan found a high concentration of potentially restrictive terms.',
 };
 
 const BANDS: BandInfo[] = [
   { band: 'none', below: Number.EPSILON, label: 'Clean', verdict: 'No predatory clauses were found.' },
   { band: 'low', below: 25, label: 'Low risk', verdict: 'A few clauses limit your legal options.' },
-  { band: 'moderate', below: 50, label: 'Moderate risk', verdict: 'Some clauses restrict how you can resolve disputes.' },
-  { band: 'high', below: 75, label: 'High risk', verdict: 'Several clauses take away your right to sue.' },
+  { band: 'moderate', below: 50, label: 'Moderate risk', verdict: 'Some terms may materially affect your rights or obligations.' },
+  { band: 'high', below: 75, label: 'High risk', verdict: 'Review the flagged terms and their potential impact.' },
   SEVERE,
 ];
 
 /** Plain-language names for rule ids; unknown rules fall back to the engine label. */
 const RULES: Record<string, { title: string; blurb: string }> = {
+  'unilateral_modification.without_notice': {
+    title: 'Changes without notice',
+    blurb: 'The terms say the provider may amend the agreement without notifying you in advance.',
+  },
   'forced_arbitration.mandatory_arbitration': {
     title: 'Mandatory arbitration',
     blurb: 'Disputes go to a private arbitrator instead of a court.',
