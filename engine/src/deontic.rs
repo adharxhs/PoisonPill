@@ -231,6 +231,26 @@ mod tests {
     use crate::rules::{Predicate, RuleRegistry, RuleSpec};
 
     #[test]
+    fn unilateral_modification_has_its_own_evidence_and_no_arbitration_opt_out() {
+        let text = "Café terms. We may amend these\u{a0}terms without prior notice. \
+                    You may opt out of arbitration within 30 days by emailing arb@example.com.";
+        let report = analyze_with(&RuleRegistry::builtin(), text);
+        assert_eq!(report.findings.len(), 1);
+        let finding = &report.findings[0];
+        assert_eq!(finding.rule_id, "unilateral_modification.without_notice");
+        assert_eq!(finding.modality, crate::model::Modality::Permission);
+        assert_eq!(finding.severity, 4.0);
+        assert!(finding.reason.contains("without prior notice"));
+        assert_eq!(
+            &text[finding.start_offset..finding.end_offset],
+            finding.raw_text
+        );
+        assert!(!finding.opt_out_available);
+        assert_eq!(finding.opt_out_target, None);
+        assert_eq!(report.poison_index, 4.0);
+    }
+
+    #[test]
     fn finds_arbitration_clause_and_opt_out() {
         let doc = "You waive any right to a jury trial or class action, \
                    unless you opt-out within 30 days by emailing arb@example.com.";
