@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Bumped whenever a change to this module would break an existing worker.
-pub const SCHEMA_VERSION: &str = "1.0";
+/// Version 1.1 changes how the document score is calculated.
+pub const SCHEMA_VERSION: &str = "1.1";
 
 /// Deontic modality carried by a clause edge. Wire values are lowercase.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]

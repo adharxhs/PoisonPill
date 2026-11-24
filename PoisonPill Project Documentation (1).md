@@ -40,14 +40,20 @@ $$\text{NetPolarity}(C) = \text{Polarity}(C_{\text{base}}) \times \prod_{i=1}^{m
 Where $\Phi(\text{Marker}) = -1$ if the token belongs to the set of exception operators:
 $$\text{Marker} \in \{\text{"except"}, \text{"unless"}, \text{"provided that"}, \text{"notwithstanding"}, \text{"save for"}, \text{"at our sole discretion"}\}$$
 
-### 2.3 Mathematical Risk Scoring: The Poison Index ($P_I$)
-The global toxicity of a document is expressed by the normalized Poison Index $P_I \in [0, 100]$:
+### 2.3 Document Scoring and the Poison Index ($P_I$)
 
-$$P_I = \min \left( 100, \; \sum_{k=1}^{N} w_k \cdot \mu(C_k) \cdot \tau(C_k) \right)$$
+The Poison Index summarizes the types and severity of wording flagged by the
+scan. For each category $k$, use the strongest finding’s weight $w_k$ on the
+1–5 severity scale. Normalize each weight into a signal $s_k=w_k/10$ and combine
+the category signals with diminishing returns:
 
-* $w_k \in [1.0, 5.0]$: Base weight of the threat category (Arbitration waivers take precedence over cookie tracking).
-* $\mu(C_k) \in [0.5, 2.0]$: Asymmetry multiplier (increases if discretion is strictly unilateral).
-* $\tau(C_k) \in [0.1, 1.0]$: Recency and irrevocability decay factor (increases if no opt-out window is legally provided).
+$$P_I = 100 \left(1 - \prod_k (1-s_k)\right)$$
+
+The result is rounded once to two decimals. An empty report scores zero.
+Repeated findings in one category remain visible and share the same category
+signal. An opt-out and its wording are displayed beside the relevant clause,
+since the scan cannot establish whether a user is still eligible to use it.
+The index expresses detected wording on a bounded scale.
 
 ---
 

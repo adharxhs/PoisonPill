@@ -265,7 +265,7 @@ export function buildPdf(record: ScanRecord): jsPDF {
       }
     }
     if (new Set(findings.map((finding) => finding.category)).size < findings.length) {
-      paragraph('Findings in the same category count once toward the Poison Index for this clause.', 9);
+      paragraph('The Poison Index uses the strongest finding in each category, so repeated findings in the same category do not add points.', 9);
     }
     continuedGroup = undefined;
   }
@@ -278,7 +278,7 @@ export function buildPdf(record: ScanRecord): jsPDF {
   }
 
   room(40);
-  paragraph(`Technical summary: Poison Index ${report.poison_index}/100. The score reflects the wording this scan flagged.`, 9);
+  paragraph(`Technical summary: Poison Index ${report.poison_index}/100. The score combines the strongest flagged issue in each category. Check any opt-out instructions separately.`, 9);
 
   const pages = pdf.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {

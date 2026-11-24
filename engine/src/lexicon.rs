@@ -314,16 +314,6 @@ pub const TERMINATION_GUARDS: &[&str] = &[
     "either party may terminate immediately",
 ];
 
-/// Unilateral discretion markers. These raise `mu` in scoring.
-pub const UNILATERAL_DISCRETION: &[&str] = &[
-    "sole discretion",
-    "at any time",
-    "without notice",
-    "at our option",
-    "in our discretion",
-    "unilaterally",
-];
-
 /// Negations that make a base clause compliant before a carve-out marker.
 pub const COMPLIANCE_NEGATIONS: &[&str] = &[
     "not",

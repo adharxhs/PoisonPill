@@ -7,6 +7,7 @@
 import { gsap } from 'gsap';
 import { buildPdf, reportFilename } from './report';
 
+import { CURRENT_SCHEMA_VERSION } from './types';
 import type { ClauseFinding, JumpToClauseRequest, JumpToClauseResponse, PageScanResponse, ScanRecord } from './types';
 
 /** Same colours, evenly spaced, as the gauge's `#risk` gradient in popup.html. */
@@ -24,15 +25,15 @@ interface BandInfo {
 const SEVERE: BandInfo = {
   band: 'severe',
   below: Infinity,
-  label: 'Severe risk',
-  verdict: 'The scan found a high concentration of potentially restrictive terms.',
+  label: 'Very high score',
+  verdict: 'The scan found a combination of terms worth checking carefully.',
 };
 
 const BANDS: BandInfo[] = [
   { band: 'none', below: Number.EPSILON, label: 'No findings', verdict: 'The supported rules found no matching clauses in the scanned text.' },
-  { band: 'low', below: 25, label: 'Low risk', verdict: 'A few clauses limit your legal options.' },
-  { band: 'moderate', below: 50, label: 'Moderate risk', verdict: 'Some terms may materially affect your rights or obligations.' },
-  { band: 'high', below: 75, label: 'High risk', verdict: 'Review the flagged terms and their potential impact.' },
+  { band: 'low', below: 35, label: 'Lower score', verdict: 'The scan found wording worth checking.' },
+  { band: 'moderate', below: 60, label: 'Moderate score', verdict: 'Review how the flagged terms could affect you.' },
+  { band: 'high', below: 80, label: 'High score', verdict: 'Review the combined effect of the flagged terms.' },
   SEVERE,
 ];
 
@@ -287,7 +288,7 @@ function renderGroups(findings: ClauseFinding[]): HTMLElement[] {
 }
 
 function formatIndex(index: number): string {
-  return index.toFixed(index % 1 ? 1 : 0);
+  return index.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 /**
@@ -393,6 +394,8 @@ function renderCandidates(record?: ScanRecord): void {
 function renderRecord(record?: ScanRecord): void {
   gaugeMedia?.revert();
   gaugeMedia = undefined;
+  const stale = record && record.report.schema_version !== CURRENT_SCHEMA_VERSION;
+  if (stale) record = undefined;
   currentRecord = record;
   renderCandidates(record);
   if (downloadButton) downloadButton.disabled = !record;
@@ -402,6 +405,10 @@ function renderRecord(record?: ScanRecord): void {
   const container = document.getElementById('report');
   container?.replaceChildren();
   if (!record) {
+    setText('empty-title', stale ? 'Report needs a refresh' : 'No report for this tab yet');
+    setText('empty-instructions', stale
+      ? 'Select Refresh report to calculate the updated score.'
+      : 'PoisonPill scans likely legal pages automatically. Select Refresh report to check this page manually.');
     show('none');
     return;
   }

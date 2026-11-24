@@ -145,9 +145,9 @@ is a native test, not a Wasm profile in Chrome.
 - The report is deterministic, but the *scan record* is not: `scanned_at` is a
   wall-clock timestamp owned by the UI. Two scans of the same page differ in that
   field and in `url`.
-- `poison_index` is rounded once at document level. Recomputing a per-clause
-  breakdown from `severity` will not exactly reconstruct it, because `μ` and `τ`
-  are applied per finding before clamping.
+- `poison_index` uses the strongest finding in each category and rounds once.
+  It is a summary of flagged wording. It does not estimate legal enforceability
+  or whether an opt-out is still available.
 - The committed Wasm bytes are the shipped engine. If they are rebuilt without
   regenerating goldens, `make parity` fails rather than silently shipping a
   different engine.

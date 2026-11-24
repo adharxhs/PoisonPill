@@ -277,3 +277,32 @@ python3 scripts/evaluate-exact-rules.py /path/to/tos-100/test.csv engine/target/
 
 These are regression results on the panel used to diagnose the fixes. An
 independent sample is needed to measure generalization.
+
+## Poison Index v1.1 behavior check
+
+The original scorer added each category occurrence and applied a 90% discount
+when it detected opt-out wording. With the existing severity weights, 20
+copies of one arbitration sentence hit the 100-point ceiling. A single
+arbitration sentence with opt-out wording scored 0.5, despite the scanner
+having no way to tell if an individual user's window was still open.
+
+The revised scorer takes the strongest finding in each category. The product
+formula retains the existing category ordering and adds breadth with
+diminishing returns. It also removes the separate multiplier for broad
+discretion phrases such as “at any time.” The examples below were run through
+the old and updated shipped Wasm engines. These are behavior checks of the
+formula. The rule evaluation corpus labels clause types and cannot calibrate
+numerical severity or the popup's display bands.
+
+| Scenario | v1.0 | v1.1 |
+| --- | ---: | ---: |
+| One arbitration clause | 5 | 50 |
+| Same clause with opt-out wording | 0.5 | 50 |
+| 20 copies of the arbitration clause | 100 | 50 |
+| One no-notice amendment with “at any time” | 8 | 40 |
+| One disclosure to advertisers | 3 | 30 |
+| Arbitration, a no-notice amendment, and advertising disclosure | 12 | 79 |
+
+All seven shipped categories together yield 97.07. A score of zero means the
+scored rules produced no findings in the scanned text. Historical held-out
+reports retain the scoring version used when they were recorded.

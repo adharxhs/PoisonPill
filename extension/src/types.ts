@@ -1,6 +1,8 @@
 // Wire contract v1. Field names and values mirror `engine/src/model.rs`
 // exactly; see docs/CONTRACT.md. snake_case is deliberate.
 
+export const CURRENT_SCHEMA_VERSION = '1.1';
+
 export type Modality = 'obligation' | 'permission' | 'prohibition' | 'waiver';
 
 export type InversionShape =

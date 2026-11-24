@@ -87,7 +87,7 @@ coincidental to ship.
   for the same sentence. Explicit class bars take precedence when a later
   waiver concerns another right. Generic court matches and duplicate class
   findings are suppressed where they overlap. Other categories keep the first
-  matching rule per clause. The score counts each category once per range.
+  matching rule per clause. The document score uses the strongest finding in each category.
 - Findings are emitted in sentence order, and the tokenizer is linear.
 - No hash maps participate in output ordering.
 

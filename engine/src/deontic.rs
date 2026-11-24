@@ -559,7 +559,7 @@ mod tests {
         );
         assert!(!finding.opt_out_available);
         assert_eq!(finding.opt_out_target, None);
-        assert_eq!(report.poison_index, 4.0);
+        assert_eq!(report.poison_index, 40.0);
     }
 
     #[test]
@@ -661,7 +661,7 @@ mod tests {
                 "forced_arbitration.mandatory_arbitration",
             ]
         );
-        assert_eq!(report.poison_index, 5.0);
+        assert_eq!(report.poison_index, 50.0);
     }
 
     #[test]
@@ -715,11 +715,11 @@ mod tests {
                 "forced_arbitration.jury_trial_waiver",
             ]
         );
-        assert_eq!(report.poison_index, 5.0);
+        assert_eq!(report.poison_index, 50.0);
     }
 
     #[test]
-    fn poison_index_is_bounded() {
+    fn repeated_arbitration_clauses_do_not_inflate_the_score() {
         let finding = ClauseFinding {
             category: "forced_arbitration".into(),
             label: "Forced Arbitration & Class Waiver".into(),
@@ -744,7 +744,7 @@ mod tests {
                 clause
             })
             .collect();
-        assert_eq!(poison_index(&many), 100.0);
+        assert_eq!(poison_index(&many), 50.0);
     }
 
     #[test]

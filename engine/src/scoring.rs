@@ -1,73 +1,38 @@
-//! The Poison Index.
+//! Document score based on the strongest scored finding in each category.
 //!
-//! `P_I = min(100, Σ w_k · μ(C_k) · τ(C_k))`, computed once at document level.
-//! All arithmetic is f64 internally and rounded to two decimals before it is
-//! cast to the f32 wire type, so native and Wasm builds format identically.
+//! For each represented category, normalize its strongest weight to [0, 0.5].
+//! The compound score is `100 * (1 - product(1 - category_signal))`, a
+//! bounded index with diminishing returns across categories.
 
-use std::collections::HashSet;
+use std::collections::BTreeMap;
 
-use crate::lexicon;
 use crate::model::ClauseFinding;
-use crate::rules::find_phrase;
 
-/// `μ` when the clause grants strictly unilateral discretion.
-pub const MU_UNILATERAL: f64 = 2.0;
-/// `μ` for ordinary asymmetric clauses.
-pub const MU_BASE: f64 = 1.0;
-/// `τ` when an opt-out window is legally stated.
-pub const TAU_OPT_OUT: f64 = 0.1;
-/// `τ` when no opt-out is stated.
-pub const TAU_NONE: f64 = 1.0;
-
-/// `μ(C)`: 2.0 when any unilateral-discretion phrase occurs, else 1.0.
-pub fn asymmetry_multiplier(finding: &ClauseFinding) -> f64 {
-    if lexicon::UNILATERAL_DISCRETION
-        .iter()
-        .any(|phrase| find_phrase(&finding.raw_text, phrase).is_some())
-    {
-        MU_UNILATERAL
-    } else {
-        MU_BASE
-    }
-}
-
-/// `τ(C)`: the right is not fully stripped when the user can opt out.
-pub fn opt_out_decay(opt_out_available: bool) -> f64 {
-    if opt_out_available {
-        TAU_OPT_OUT
-    } else {
-        TAU_NONE
-    }
-}
-
-/// One clause's contribution to the document score.
+/// Score for one finding in isolation. The document combines category signals,
+/// so isolated scores cannot be added together.
 pub fn finding_contribution(finding: &ClauseFinding) -> f64 {
-    finding.severity as f64
-        * asymmetry_multiplier(finding)
-        * opt_out_decay(finding.opt_out_available)
+    if !finding.severity.is_finite() {
+        return 0.0;
+    }
+    f64::from(finding.severity).clamp(0.0, 5.0) * 10.0
 }
 
-/// Document-level `P_I`, clamped to `[0, 100]` and rounded to two decimals.
+/// Document-level Poison Index in [0, 100], rounded to two decimals.
 pub fn poison_index(findings: &[ClauseFinding]) -> f32 {
-    // Fold from an explicit `0.0` instead of `sum()`: the float `Sum` seed is
-    // `-0.0`, which an empty report would serialise as `poison_index:-0.0`.
-    // The report may explain two rights waived in a single sentence.
-    // Score its category once, in the same order as the findings.
-    let mut scored = HashSet::new();
-    let total: f64 = findings
-        .iter()
-        .filter(|finding| {
-            scored.insert((
-                finding.start_offset,
-                finding.end_offset,
-                finding.category.as_str(),
-            ))
-        })
-        .map(finding_contribution)
-        .fold(0.0, |sum, contribution| sum + contribution);
-    let clamped = total.clamp(0.0, 100.0);
-    let rounded = (clamped * 100.0).round() / 100.0;
-    rounded as f32
+    let mut strongest = BTreeMap::new();
+    for finding in findings {
+        let points = finding_contribution(finding);
+        strongest
+            .entry(finding.category.as_str())
+            .and_modify(|current: &mut f64| *current = current.max(points))
+            .or_insert(points);
+    }
+
+    // Category order is deterministic for both arithmetic and serialization.
+    let remainder = strongest
+        .values()
+        .fold(1.0, |remaining, points| remaining * (1.0 - points / 100.0));
+    (((1.0 - remainder) * 10_000.0).round() / 100.0) as f32
 }
 
 #[cfg(test)]
@@ -95,70 +60,65 @@ mod tests {
     }
 
     #[test]
-    fn contributions_are_exact() {
-        let cases = [
-            (5.0f32, false, "you waive class actions", 5.0f64),
-            (5.0, true, "you waive class actions", 0.5),
-            (
-                5.0,
-                false,
-                "you waive class actions at our sole discretion",
-                10.0,
-            ),
-            (
-                5.0,
-                true,
-                "you waive class actions at our sole discretion",
-                1.0,
-            ),
-            (3.25, false, "ordinary clause", 3.25),
-            (3.25, true, "ordinary clause", 0.325),
-            (4.0, false, "we may act unilaterally", 8.0),
-        ];
+    fn distinct_categories_accumulate_with_diminishing_returns() {
+        let arbitration = finding(5.0, "Disputes must go to arbitration.", false);
+        let mut amendment = finding(4.0, "We may change these terms.", false);
+        amendment.category = "unilateral_modification".into();
+        let mut disclosure = finding(3.0, "We share data with advertisers.", false);
+        disclosure.category = "surveillance".into();
 
-        for (severity, opt_out, text, expected) in cases {
-            let clause = finding(severity, text, opt_out);
-            assert_eq!(
-                finding_contribution(&clause),
-                expected,
-                "severity={severity} opt_out={opt_out} text={text}"
-            );
+        assert_eq!(poison_index(std::slice::from_ref(&arbitration)), 50.0);
+        assert_eq!(poison_index(&[arbitration, amendment, disclosure]), 79.0);
+    }
+
+    #[test]
+    fn strongest_clause_sets_category_score_regardless_of_repetition() {
+        let strongest = finding(5.0, "Disputes must go to arbitration.", false);
+        let mut findings = vec![strongest];
+        for index in 1..=20 {
+            let mut related = finding(4.0, "Other wording about arbitration.", false);
+            related.start_offset = index * 100;
+            related.end_offset = related.start_offset + related.raw_text.len();
+            findings.push(related);
         }
+        assert_eq!(poison_index(&findings), 50.0);
+        findings.reverse();
+        assert_eq!(poison_index(&findings), 50.0);
     }
 
     #[test]
-    fn document_score_sums_and_rounds() {
-        let clause = finding(3.25, "ordinary clause", true);
-        assert_eq!(poison_index(&[clause]), 0.33);
+    fn wording_alone_cannot_establish_an_opt_out_is_still_available() {
+        let clause = finding(5.0, "Disputes must go to arbitration.", false);
+        let mut with_opt_out = clause.clone();
+        with_opt_out.opt_out_available = true;
+        assert_eq!(poison_index(&[clause]), poison_index(&[with_opt_out]));
     }
 
     #[test]
-    fn document_score_is_clamped() {
-        let clause = finding(5.0, "you waive class actions", false);
-        let many: Vec<_> = (0..40)
-            .map(|index| {
-                let mut finding = clause.clone();
-                finding.start_offset = index * finding.raw_text.len();
-                finding.end_offset = finding.start_offset + finding.raw_text.len();
-                finding
-            })
-            .collect();
-        assert_eq!(poison_index(&many), 100.0);
+    fn discretion_words_in_the_text_do_not_multiply_a_category_weight() {
+        let plain = finding(4.0, "We may amend these terms without prior notice.", false);
+        let with_discretion = finding(4.0, "We may change these terms at any time.", false);
+        assert_eq!(poison_index(&[plain]), 40.0);
+        assert_eq!(poison_index(&[with_discretion]), 40.0);
     }
 
     #[test]
-    fn empty_document_scores_zero() {
+    fn distinct_categories_are_order_independent_and_bounded() {
+        let mut findings = Vec::new();
+        for index in 0..100 {
+            let mut clause = finding(5.0, "Ordinary example.", false);
+            clause.category = format!("category_{index}");
+            findings.push(clause);
+        }
+        assert_eq!(poison_index(&findings), 100.0);
+        findings.reverse();
+        assert_eq!(poison_index(&findings), 100.0);
+    }
+
+    #[test]
+    fn empty_document_scores_positive_zero() {
         let score = poison_index(&[]);
         assert_eq!(score, 0.0);
-        assert!(
-            score.is_sign_positive(),
-            "an empty report must serialise as 0.0, not -0.0"
-        );
-    }
-
-    #[test]
-    fn unilateral_markers_are_case_insensitive() {
-        let clause = finding(5.0, "You Waive Claims At Our Sole Discretion", false);
-        assert_eq!(asymmetry_multiplier(&clause), MU_UNILATERAL);
+        assert!(score.is_sign_positive());
     }
 }

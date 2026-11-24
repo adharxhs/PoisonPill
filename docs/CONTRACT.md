@@ -93,7 +93,7 @@ the heading when this happens.
 
 A neighbouring association appends `; opt-out stated in a neighbouring clause of
 the same block` to `reason`, so the claim is always explainable from the report.
-The field shapes did not change, so `schema_version` stays `"1.0"`.
+The score semantics are versioned separately from the opt-out fields.
 
 The engine detects the address; generating mail is out of scope for the engine.
 
@@ -101,21 +101,26 @@ The engine detects the address; generating mail is out of scope for the engine.
 
 | Field | Type | Meaning |
 | :--- | :--- | :--- |
-| `schema_version` | string | `"1.0"` for this contract. |
+| `schema_version` | string | `"1.1"` for the category-based score. |
 | `findings` | `ClauseFinding[]` | Sorted, as above. |
-| `poison_index` | number | Document-level `P_I`, clamped to `[0, 100]`, rounded to two decimals. |
+| `poison_index` | number | Document-level `P_I` in `[0, 100]`, rounded to two decimals. |
 | `truncated` | boolean | Input exceeded the 512 KiB cap; only a prefix was analysed. |
 
-`P_I = min(100, Σ w_k · μ(C_k) · τ(C_k))`, computed once at document level.
-`μ` is `2.0` when the clause grants unilateral discretion, else `1.0`. `τ` is
-`0.1` when an opt-out window is present, else `1.0`.
+`P_I = 100 × (1 − product(1 − w_k/10))`, where `w_k` is the maximum severity
+in each detected category. Categories combine with diminishing returns.
+Repeated clauses, discretion wording, and opt-out flags do not add or
+subtract points. The drawer displays every finding and any opt-out wording.
+
+The popup asks for a fresh scan when a stored report uses an older schema
+version. Version 1.0 scores used a different scale and are historical.
+
 
 ## Canonical response envelope
 
 `analyze_json` never throws for user text. It returns one of:
 
 ```json
-{"status":"ok","report":{"schema_version":"1.0","findings":[],"poison_index":0.0,"truncated":false}}
+{"status":"ok","report":{"schema_version":"1.1","findings":[],"poison_index":0.0,"truncated":false}}
 ```
 
 ```json
@@ -194,7 +199,7 @@ reports changes in scanned wording rather than a legal conclusion.
 
 Mandatory arbitration, class restrictions, and jury waivers can produce
 separate findings for the same sentence. Their shared category contributes
-to the score once per byte range. The website scan can supply its hostname
+one signal to the document score. The website scan can supply its hostname
 as context for identifying a named amendment actor. The source text and
 UTF-8 offsets remain unchanged.
 
