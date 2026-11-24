@@ -118,8 +118,8 @@ whose phrasing needs it.
 
 ## 6. Opt-out is clause-scoped and stops at detection
 
-**Status:** accepted (commit `7e58dcf`); gap recorded in
-[`KNOWN_LIMITS.md`](KNOWN_LIMITS.md).
+**Status:** superseded in part by decision 16 (cross-clause association); the
+"stops at detection" half still stands.
 
 **Decision.** A finding sets `opt_out_available` only when the same sentence
 contains an opt-out action *and* a window. `optout.rs` extracts the first valid
@@ -210,7 +210,7 @@ by `make engine` and `make parity`.
 **Context.** The spec's product layer (highlights, badges, jump-to-clause,
 theming) is large and easy to build on top of an unstable contract.
 
-**Decision.** `content.ts` extracts page text, sends it to the worker, and stores
+**Decision.** `content.ts` extracts page text, sends it to the engine's service worker (decision 18), and stores
 one `last_scan` record. It does not mutate the page. `popup.ts` renders that
 record as plain text in the extension's own document. No highlighting, badges,
 shields, jump-to-clause, history, or mail generation. The shell exists to prove
@@ -283,3 +283,124 @@ full contract text, which the threat model avoids.
 
 **Cost.** The popup can only show the most recent scan. History is backlog work
 and must store digests and offsets, not full text.
+
+## 16. Opt-out association is bounded to the block, not the document
+
+**Status:** accepted (post-`v0.1.0-base`).
+
+**Context.** Four held-out documents offered an arbitration opt-out in the
+sentence after the finding, so every finding reported `opt_out_available:
+false`. Decision 6 rejected document-wide association for good reason.
+
+**Decision.** `optout::associate` keeps the in-clause opt-out when there is one.
+Otherwise it looks at opt-out clauses (action *and* window) at most
+`ASSOCIATION_WINDOW = 3` sentences away and in the same block (no blank line in
+between). Candidates naming a foreign subject (`OPT_OUT_FOREIGN_SUBJECTS`:
+marketing, cookies, personal data, …) are dropped; if any candidate names
+dispute resolution (`OPT_OUT_DISPUTE_SUBJECTS`), only those count; two distinct
+addresses make the association ambiguous and nothing is asserted. A neighbouring
+association is stated in `reason`. Opt-out facts are computed lazily, at most
+once per clause, and only when a document has a finding.
+
+**Rejected.** Document-wide search (decision 6); association by proximity alone
+(a marketing opt-out next to an arbitration clause would qualify); adding an
+`opt_out_offset` field (a schema change for a value the UI does not use yet).
+
+**Cost.** Pages whose `innerText` has no blank lines form one long block, so the
+3-sentence window does most of the bounding there. An opt-out stated in a
+separate "Opt-out" section after a heading and blank line is still missed.
+
+## 17. Lexicon breadth is measured on a labelled dev set and paid for in guards
+
+**Status:** accepted (post-`v0.1.0-base`).
+
+**Context.** `court_access_waiver` and `class_action_bar` had zero held-out
+hits, and `mandatory_arbitration` missed "shall be settled by arbitration". The
+handoff asked whether the rules were wrong or the phrasing was missing.
+
+**Decision.** `fixtures/labelled/clauses.tsv` holds realistic phrasings per rule
+plus near misses. Measured before changing anything, recall was 2/12
+(mandatory), 3/10 (court access) and 3/10 (class bar), and two near misses
+already fired. The rules were sound; the lexicon was too narrow. Each broadening
+came with a guard:
+
+- `MANDATORY_ARBITRATION` gained `settled by`/`referred to`/`submitted to`/
+  `resolved by`/`resolved through arbitration`, `arbitration shall be the
+  exclusive`, `decided by an arbitrator`. `VOLUNTARY_ARBITRATION` ("may be
+  settled by arbitration", "if both parties agree", "by mutual agreement", …)
+  is prohibited for that rule only.
+- `WAIVER_VERBS` gained plain-language synonyms only with a *right* as object
+  (`give up the right`, `forgo any right`, `relinquish your right`, …), because
+  bare `give up` next to "court fees" fired. `not give up` / `not giving up`
+  are compliance guards and `we give up` is a provider waiver.
+- `COURT_TERMS` gained `judge` and `litigate`; `CLASS_ACTIONS` gained
+  `representative proceeding` and `purported class`; `CLASS_ACTION_BARS`
+  gained individual-capacity and "neither party may" shapes.
+- `class_action_bar` now also requires a `CLASS_BAR_SUBJECTS` term (you, claim,
+  dispute, party, arbitrator, "under this agreement"), which removed the
+  "support cannot answer questions about class action settlements" false
+  positive. `SEVERABILITY_REFERENCES` ("found unenforceable", …) guard every
+  Arbitration rule, removing the severability false positive.
+
+Every new positive fixture has two new hard negatives (13 positive / 26 hard
+negative). `rule_id`s are unchanged, so no rule was deleted.
+
+**Rejected.** Narrowing `RULES.md` claims instead of extending data: the dev set
+showed the rule shapes were right. Deleting `court_access_waiver`: it now fires
+on realistic phrasings and its near misses stay silent.
+
+**Cost.** The dev numbers are optimistic because the lexicon was extended while
+looking at them. The held-out corpus still shows zero hits for these two rules,
+partly because of decision 2: in those documents another rule claims the
+category first. The phrase count roughly doubled, so `find_phrase` was rewritten
+to skip to candidate first bytes (same results, goldens unchanged); see
+`MEASUREMENTS.md`.
+
+## 18. The engine runs in the background service worker
+
+**Status:** accepted (post-`v0.1.0-base`); fixes a shell that never scanned.
+
+**Context.** Loading `dist/` in Chrome 157 and visiting a terms page showed the
+reference shell had never produced a report. The content script runs in the
+page's origin, and `new Worker(chrome.runtime.getURL('worker.js'))` throws a
+cross-origin `SecurityError`, so nothing was analysed or stored, and the popup
+said "No predatory clauses detected". A second bug hid behind it: the worker
+passed `analyzeJson`'s JSON *string* to `parseEnvelope`, which rejected it as a
+malformed envelope. Parity tests run the engine in Node, so neither surfaced.
+
+**Decision.** `worker.js` is declared as the MV3 `background.service_worker`. It
+imports `engine.js` at top level, instantiates the Wasm lazily, parses the
+envelope string, and answers `chrome.runtime.onMessage` requests from this
+extension only. The content script calls `chrome.runtime.sendMessage` and stores
+the response. `web_accessible_resources` is removed: pages no longer need to
+load any extension file. The popup distinguishes "nothing scanned yet" from "no
+findings" and names the URL of the last scan.
+
+**Rejected.** An offscreen document hosting a dedicated worker (needs the
+`offscreen` permission); a `blob:` worker created in the page (subject to every
+page's CSP, and the worker would run in the page origin).
+
+**Cost.** The service worker may be stopped when idle, so the first scan after a
+restart pays Wasm instantiation again. Parsing is off the page's main thread but
+shares the service worker with any future background logic.
+
+## 19. GSAP drives the popup's score-card entrance
+
+**Status:** accepted (post-`v0.1.0-base`).
+
+**Context.** The popup's gradient gauge needs the arc fill, the knob, a count-up
+of the score and the knob's colour along the gradient to move as one. CSS
+transitions cannot count a number or interpolate a colour along the gradient,
+and three separately timed transitions drift.
+
+**Decision.** `gsap` 3.15.1 (exact pin, GSAP standard no-charge licence) is a
+runtime dependency of `popup.ts` only, bundled by esbuild into `dist/popup.js`.
+One `gsap.timeline()` sequences the sweep and the pill/verdict reveal;
+`gsap.matchMedia()` jumps to the end state under `prefers-reduced-motion`. It
+makes no network requests and uses no `eval`, so the CSP is unchanged. Content
+script and worker do not import it. `tsconfig.json` uses
+`moduleResolution: "bundler"` to resolve it for typechecking.
+
+**Cost.** `dist/popup.js` grows to ~187 KB unminified, loaded from the extension
+package only when the popup opens.
+
