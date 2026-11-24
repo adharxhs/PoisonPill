@@ -13,6 +13,8 @@ use crate::model::Modality;
 pub enum Predicate {
     /// True when any listed phrase occurs. Evidence is the earliest phrase.
     AnyPhrase(&'static [&'static str]),
+    /// Whole words with flexible whitespace and hyphenation.
+    AnyTokenPhrase(&'static [&'static str]),
     /// True when every listed phrase occurs.
     AllPhrases(&'static [&'static str]),
     /// True when a left phrase and a right phrase occur within `window` words
@@ -153,7 +155,10 @@ impl Predicate {
 
     pub fn evaluate(&self, clause: &str, window: usize) -> Option<PredicateHit> {
         match self {
-            Predicate::AnyPhrase(phrases) => earliest_phrase(clause, phrases),
+            Predicate::AnyPhrase(phrases) => earliest_phrase(clause, phrases, substring_span),
+            Predicate::AnyTokenPhrase(phrases) => {
+                earliest_phrase(clause, phrases, token_phrase_span)
+            }
             Predicate::AllPhrases(phrases) => all_phrases(clause, phrases),
             Predicate::Near { left, right } => nearest_pair(clause, left, right, window),
         }
@@ -166,6 +171,12 @@ impl Predicate {
         match self {
             Predicate::AnyPhrase(phrases) | Predicate::AllPhrases(phrases) => {
                 all_occurrences(clause, phrases)
+                    .into_iter()
+                    .map(|(start, _, len)| (start, start + len))
+                    .collect()
+            }
+            Predicate::AnyTokenPhrase(phrases) => {
+                all_occurrences_with(clause, phrases, token_phrase_span)
                     .into_iter()
                     .map(|(start, _, len)| (start, start + len))
                     .collect()
@@ -185,18 +196,69 @@ pub struct PredicateHit {
     pub evidence: Vec<&'static str>,
 }
 
-fn earliest_phrase(clause: &str, phrases: &'static [&'static str]) -> Option<PredicateHit> {
-    let mut best: Option<(&'static str, usize)> = None;
-    for phrase in phrases {
-        if let Some(start) = find_phrase(clause, phrase) {
-            if best.is_none_or(|(_, best_start)| start < best_start) {
-                best = Some((phrase, start));
+type PhraseSearch = fn(&str, &str) -> Option<(usize, usize)>;
+
+fn substring_span(clause: &str, phrase: &str) -> Option<(usize, usize)> {
+    let start = find_phrase(clause, phrase)?;
+    Some((start, start + phrase.len()))
+}
+
+fn token_separator(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '-' | '‐' | '‑')
+}
+
+fn word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+fn token_phrase_span(clause: &str, phrase: &str) -> Option<(usize, usize)> {
+    let mut words = phrase
+        .split(token_separator)
+        .filter(|word| !word.is_empty());
+    let first = words.next()?;
+    let mut from = 0;
+    while let Some(relative) = find_phrase(&clause[from..], first) {
+        let start = from + relative;
+        let end = start + first.len();
+        from = start + clause[start..].chars().next()?.len_utf8();
+        if clause[..start].ends_with(word_char) || clause[end..].starts_with(word_char) {
+            continue;
+        }
+        let mut rest = &clause[end..];
+        let matched = words.clone().all(|word| {
+            let next = rest.trim_start_matches(token_separator);
+            if next.len() == rest.len() {
+                return false;
             }
+            let Some(prefix) = next.get(..word.len()) else {
+                return false;
+            };
+            let tail = &next[word.len()..];
+            if !prefix.eq_ignore_ascii_case(word) || tail.starts_with(word_char) {
+                return false;
+            }
+            rest = tail;
+            true
+        });
+        if matched {
+            return Some((start, clause.len() - rest.len()));
         }
     }
-    best.map(|(phrase, start)| PredicateHit {
+    None
+}
+
+fn earliest_phrase(
+    clause: &str,
+    phrases: &'static [&'static str],
+    search: PhraseSearch,
+) -> Option<PredicateHit> {
+    let (start, end, phrase) = phrases
+        .iter()
+        .filter_map(|&phrase| search(clause, phrase).map(|(start, end)| (start, end, phrase)))
+        .min_by_key(|&(start, _, _)| start)?;
+    Some(PredicateHit {
         start,
-        end: start + phrase.len(),
+        end,
         evidence: vec![phrase],
     })
 }
@@ -253,13 +315,20 @@ fn all_occurrences(
     clause: &str,
     phrases: &'static [&'static str],
 ) -> Vec<(usize, &'static str, usize)> {
+    all_occurrences_with(clause, phrases, substring_span)
+}
+
+fn all_occurrences_with(
+    clause: &str,
+    phrases: &'static [&'static str],
+    search: PhraseSearch,
+) -> Vec<(usize, &'static str, usize)> {
     let mut out = Vec::new();
     for phrase in phrases {
-        let mut from = 0usize;
-        while let Some(relative) = find_phrase(&clause[from..], phrase) {
-            let start = from + relative;
-            out.push((start, *phrase, phrase.len()));
-            from = start + phrase.len().max(1);
+        let mut from = 0;
+        while let Some((start, end)) = search(&clause[from..], phrase) {
+            out.push((from + start, *phrase, end - start));
+            from += end;
             if out.len() >= 64 {
                 return out;
             }
@@ -332,7 +401,7 @@ const MANDATORY_ARBITRATION_GUARDS: &[Predicate] = &[
     Predicate::AnyPhrase(lexicon::COMPLIANCE_GUARDS),
     Predicate::AnyPhrase(lexicon::PROVIDER_WAIVERS),
     Predicate::AnyPhrase(lexicon::SEVERABILITY_REFERENCES),
-    Predicate::AnyPhrase(lexicon::VOLUNTARY_ARBITRATION),
+    Predicate::AnyTokenPhrase(lexicon::VOLUNTARY_ARBITRATION),
 ];
 
 /// The one reference category. Every field is data.
@@ -389,7 +458,7 @@ pub const ARBITRATION_RULES: &[RuleSpec] = &[
         modality: Modality::Waiver,
         weight: 5.0,
         required: &[
-            Predicate::AnyPhrase(lexicon::MANDATORY_ARBITRATION),
+            Predicate::AnyTokenPhrase(lexicon::MANDATORY_ARBITRATION),
             Predicate::AnyPhrase(lexicon::DISPUTE_NEXUS),
         ],
         optional: &[],
@@ -426,9 +495,10 @@ mod tests {
     fn binding_arbitration_matches_wrapped_words() {
         let text = "Café disputes shall go to BINDING\u{a0}\narbitration.";
         let found = first_match(&RuleRegistry::builtin(), text).expect("wrapped phrase");
-        assert!(found.spans.iter().any(|&(start, end)| {
-            &text[start..end] == "BINDING\u{a0}\narbitration"
-        }));
+        assert!(found
+            .spans
+            .iter()
+            .any(|&(start, end)| { &text[start..end] == "BINDING\u{a0}\narbitration" }));
     }
 
     #[test]

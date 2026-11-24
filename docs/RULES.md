@@ -39,13 +39,16 @@ pub struct RuleSpec {
 ```rust
 pub enum Predicate {
     AnyPhrase(&'static [&'static str]),
+    AnyTokenPhrase(&'static [&'static str]),
     AllPhrases(&'static [&'static str]),
     Near { left: &'static [&'static str], right: &'static [&'static str] },
 }
 ```
 
-- Matching is ASCII-case-insensitive substring matching. No regex, no
-  backtracking, no locale.
+- Matching is ASCII-case-insensitive. Existing phrase predicates use substrings.
+  `AnyTokenPhrase` requires whole words, accepts whitespace and hyphen variants
+  between them, and retains byte spans into the original clause. The sentence
+  splitter still treats explicit line breaks as clause boundaries.
 - `AnyPhrase` returns the **earliest** listed phrase. That phrase becomes
   explainability evidence.
 - `AllPhrases` requires every phrase and reports all of them.
