@@ -69,7 +69,8 @@ export function clearClauseHighlight(): void {
 export function highlightClause(request: JumpToClauseRequest): JumpToClauseResponse {
   clearClauseHighlight();
   const { text, url, start_offset, evidence } = request;
-  if (location.href !== url || !text || text.length > 120_000) {
+  // Section links can change the fragment while the scanned quote stays in place.
+  if (location.href.split('#', 1)[0] !== url.split('#', 1)[0] || !text || text.length > 120_000) {
     return { status: 'error', message: 'Refresh the report for this page before locating the clause.' };
   }
 
