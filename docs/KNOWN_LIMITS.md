@@ -113,9 +113,10 @@ surrogate pair. The popup and PDF show when either limit truncates the scan.
 
 The content script reads `document.body.innerText`. Shadow DOM, embedded frames,
 canvas content, and PDF viewer text can be outside the scan. Automatic scans
-use a legal-page heuristic and a 200-character minimum. **Refresh report**
-scans visible text from the active page on demand, including short pages and
-in-place updates. Automatic rescans after page mutations remain open.
+use a legal-page heuristic and a 200-character minimum. Tab activation and **Refresh report** scan visible text in the active tab,
+including short pages and in-place updates. Browser-internal pages and pages
+without a content script cannot be inspected. Automatic scans after changes
+within a tab remain open.
 
 ### Latency numbers are not a browser guarantee
 
@@ -144,6 +145,6 @@ The popup shows the last report, supports manual refresh, exports a local PDF,
 and can draft an arbitration opt-out. Complete scans can compare against a
 previous local SHA-256 fingerprint for the same page. Comparison reports exact
 visible-text changes and counts changed findings. Navigation or other unrelated
-page text can change the fingerprint. Jump to clause works with a unique exact match in a rendered page section.
-Repeated or changed text may require a fresh scan or a manual search.
-Historical document text, in-page highlights, and automatic rescans remain open.
+page text can change the fingerprint. Jump to clause briefly highlights the matching wording within a unique exact
+quote. Repeated or changed text may require a fresh scan or a manual search.
+Historical document text and persistent page annotations remain open.

@@ -66,6 +66,7 @@ export interface ScanComparison {
 
 /** Persisted under `chrome.storage.local["last_scan"]` for the popup. */
 export interface ScanRecord {
+  tab_id?: number;
   url: string;
   scanned_at: string;
   comparison?: ScanComparison;
@@ -89,6 +90,7 @@ export type WorkerRequest = AnalyzeRequest | PlaybackRequest;
 
 export interface AnalysisResult {
   type: 'ANALYSIS_RESULT';
+  record?: ScanRecord;
   report: DocumentReport;
   comparison?: ScanComparison;
   review_candidates?: ReviewCandidate[];
@@ -109,15 +111,25 @@ export interface JumpToClauseRequest {
   type: 'JUMP_TO_CLAUSE';
   url: string;
   text: string;
+  start_offset: number;
+  evidence: SourceExcerpt[];
 }
 
 export type JumpToClauseResponse =
-  | { status: 'ok' }
+  | { status: 'ok'; highlighted: 'evidence' | 'clause' }
   | { status: 'error'; message: string };
 
 export function isJumpToClauseRequest(value: unknown): value is JumpToClauseRequest {
   return typeof value === 'object' && value !== null &&
     'type' in value && value.type === 'JUMP_TO_CLAUSE' &&
     'url' in value && typeof value.url === 'string' &&
-    'text' in value && typeof value.text === 'string';
+    'text' in value && typeof value.text === 'string' &&
+    'start_offset' in value && typeof value.start_offset === 'number' &&
+    Number.isSafeInteger(value.start_offset) && value.start_offset >= 0 &&
+    'evidence' in value && Array.isArray(value.evidence) && value.evidence.every(
+      (excerpt: unknown) => typeof excerpt === 'object' && excerpt !== null &&
+        'text' in excerpt && typeof excerpt.text === 'string' &&
+        'start_offset' in excerpt && typeof excerpt.start_offset === 'number' &&
+        'end_offset' in excerpt && typeof excerpt.end_offset === 'number',
+    );
 }

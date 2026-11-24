@@ -163,6 +163,10 @@ interface ScanRecord {
 }
 ```
 
+Tab activation asks the selected tab's content script for a fresh scan. The
+worker checks that the originating tab is still active before replacing
+`last_scan`. The popup only shows a stored report for its current tab.
+
 ## Optional review
 
 `analyzeReviewJson` returns a pair containing the standard response envelope

@@ -182,11 +182,17 @@ function jumpButton(finding: ClauseFinding): HTMLButtonElement {
     button.disabled = true;
     try {
       const result = await chrome.tabs.sendMessage<JumpToClauseRequest, JumpToClauseResponse>(
-        await activeTabId(), { type: 'JUMP_TO_CLAUSE', url: record.url, text: finding.raw_text },
+        await activeTabId(), {
+          type: 'JUMP_TO_CLAUSE',
+          url: record.url,
+          text: finding.raw_text,
+          start_offset: finding.start_offset,
+          evidence: finding.evidence ?? [],
+        },
         { frameId: 0 },
       );
       if (result.status === 'error') throw new Error(result.message);
-      status('Moved to the clause.');
+      status(result.highlighted === 'evidence' ? 'Matched wording highlighted.' : 'Clause highlighted.');
     } catch (error: unknown) {
       status(error instanceof Error ? error.message : 'The clause could not be located.');
     } finally {
@@ -337,7 +343,7 @@ function animateScore(value: number, index: number): void {
 }
 
 let currentRecord: ScanRecord | undefined;
-let refreshed = false;
+let loadRevision = 0;
 const refreshButton = document.querySelector<HTMLButtonElement>('#refresh');
 const reviewButton = document.querySelector<HTMLButtonElement>('#review');
 const downloadButton = document.querySelector<HTMLButtonElement>('#download');
@@ -443,6 +449,7 @@ function renderRecord(record?: ScanRecord): void {
 }
 
 async function refreshReport(review = false): Promise<void> {
+  loadRevision += 1;
   if (refreshButton) refreshButton.disabled = true;
   if (reviewButton) reviewButton.disabled = true;
   if (downloadButton) downloadButton.disabled = true;
@@ -454,7 +461,7 @@ async function refreshReport(review = false): Promise<void> {
       throw new Error('This page cannot receive a scan. Reopen it if the extension was just updated.');
     });
     if (result.status === 'error') throw new Error(result.message);
-    refreshed = true;
+    if (result.record.tab_id !== await activeTabId()) return;
     renderRecord(result.record);
     status(review ? 'Review scan complete.' : 'Report refreshed.');
   } catch (error: unknown) {
@@ -472,7 +479,7 @@ reviewButton?.addEventListener('click', () => void refreshReport(true));
 downloadButton?.addEventListener('click', () => {
   if (!currentRecord) return;
   try {
-    const pdf = buildPdf(currentRecord, (finding) => RULES[finding.rule_id]?.blurb);
+    const pdf = buildPdf(currentRecord);
     const day = currentRecord.scanned_at.slice(0, 10);
     pdf.save(`poisonpill-report-${day}.pdf`);
     status('PDF download started.');
@@ -481,6 +488,23 @@ downloadButton?.addEventListener('click', () => {
   }
 });
 
-void chrome.storage.local.get('last_scan').then(({ last_scan }) => {
-  if (!refreshed && !refreshButton?.disabled) renderRecord(last_scan as ScanRecord | undefined);
-}).catch(() => status('The last report could not be loaded.'));
+async function loadActiveReport(): Promise<void> {
+  const revision = ++loadRevision;
+  try {
+    const [tabId, stored] = await Promise.all([activeTabId(), chrome.storage.local.get('last_scan')]);
+    if (revision !== loadRevision || refreshButton?.disabled) return;
+    const record = stored.last_scan as ScanRecord | undefined;
+    renderRecord(record?.tab_id === tabId ? record : undefined);
+  } catch {
+    status('The current tab report could not be loaded.');
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.last_scan && !refreshButton?.disabled) void loadActiveReport();
+});
+chrome.tabs.onActivated.addListener(() => {
+  renderRecord();
+  void loadActiveReport();
+});
+void loadActiveReport();

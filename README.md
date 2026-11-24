@@ -36,7 +36,7 @@ Node alone; Rust is needed only to change detection logic.
 - Returns a canonical JSON report with a document-level poison index and is
   byte-identical between native and Wasm builds.
 - Analyses bounded visible text and reports truncation at the page and engine limits.
-- Refresh report scans the active page on demand. Download PDF exports the displayed report locally with source wording and practical next steps.
+- Switching tabs scans the selected page automatically. Refresh report scans it on demand. Download PDF gives a plain-language explanation, practical steps, and a short technical note for each finding.
 
 - **Review more clauses** runs a bundled n-gram model offline. Possible clauses
   appear in a separate list and leave the Poison Index and PDF findings intact.
@@ -44,8 +44,8 @@ Node alone; Rust is needed only to change detection logic.
 
 ## What it deliberately does not do
 
-In-page highlighting and a browsable scan history. Jump to clause scrolls to
-a unique source match in the active page. Complete
+Persistent in-page annotations and a browsable scan history. Jump to clause
+scrolls to a unique source match and briefly highlights its matched wording. Complete
 scans can compare visible text and findings with a saved SHA-256 baseline.
 The popup displays the last report and can prepare an editable arbitration
 opt-out draft when it has the source wording. See [`docs/BACKLOG.md`](docs/BACKLOG.md).

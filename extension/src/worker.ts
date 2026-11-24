@@ -18,6 +18,7 @@ import type {
   DocumentReport,
   EngineError,
   ReviewCandidate,
+  ScanRecord,
   WorkerRequest,
   WorkerResponse,
 } from './types';
@@ -141,13 +142,73 @@ function isWorkerRequest(value: unknown): value is WorkerRequest {
   return type === 'ANALYZE_TEXT' && typeof (value as { text?: unknown }).text === 'string';
 }
 
+let activeScanRevision = 0;
+let pendingActivation: { tabId: number } | undefined;
+
+function requestActivationScan(activation: { tabId: number }): void {
+  void chrome.tabs.sendMessage(activation.tabId, 'AUTO_PAGE_REPORT', { frameId: 0 })
+    .then(() => {
+      if (pendingActivation === activation) pendingActivation = undefined;
+    })
+    .catch(() => {
+      // A newly selected tab can still be loading. Retry at load completion.
+    });
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  activeScanRevision += 1;
+  const activation = { tabId };
+  pendingActivation = activation;
+  requestActivationScan(activation);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+  if (change.status === 'complete' && tab.active && pendingActivation?.tabId === tabId) {
+    requestActivationScan(pendingActivation);
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (pendingActivation?.tabId === tabId) pendingActivation = undefined;
+});
+
+async function handlePageRequest(request: WorkerRequest, sender: chrome.runtime.MessageSender): Promise<WorkerResponse> {
+  const tabId = sender.tab?.id;
+  const pageUrl = sender.url;
+  if (request.type !== 'ANALYZE_TEXT' || tabId === undefined || !pageUrl) {
+    return handle(request);
+  }
+
+  const revision = sender.tab?.active ? ++activeScanRevision : undefined;
+  const response = await handle(request, pageUrl);
+  if (response.type === 'ANALYSIS_ERROR') return response;
+
+  const record: ScanRecord = {
+    tab_id: tabId,
+    url: pageUrl,
+    scanned_at: new Date().toISOString(),
+    report: response.report,
+    comparison: response.comparison,
+    review_candidates: response.review_candidates,
+  };
+  if (revision !== undefined && revision === activeScanRevision) {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (activeTab?.id === tabId && revision === activeScanRevision) {
+      await chrome.storage.local.set({ last_scan: record });
+    }
+  }
+  return { ...response, record };
+}
+
 chrome.runtime.onMessage.addListener(
   (message: unknown, sender, sendResponse: (response: WorkerResponse) => void) => {
     // Only this extension's own scripts may ask for analysis.
     if (sender.id !== chrome.runtime.id || !isWorkerRequest(message)) {
       return false;
     }
-    void handle(message, sender.tab ? sender.url : undefined).then(sendResponse);
+    void handlePageRequest(message, sender).then(sendResponse, (error: unknown) => {
+      sendResponse({ type: 'ANALYSIS_ERROR', error: toEngineError(error) });
+    });
     return true; // keep the channel open for the async response
   },
 );

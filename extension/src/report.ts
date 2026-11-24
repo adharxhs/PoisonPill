@@ -1,31 +1,69 @@
 import { jsPDF } from 'jspdf';
 
-import type { ClauseFinding, ScanRecord } from './types';
+import type { ScanRecord } from './types';
 
-const ARBITRATION_GUIDANCE =
-  'Save the agreement and the version you accepted. Check whether the clause covers your dispute, whether it names a forum or gives you a small-claims option, and whether any opt-out window is still open. A written opt-out is practical if the terms provide a method and your deadline has not passed. For an existing dispute, verify filing fees, eligibility and deadlines with the named forum or a qualified local adviser.';
+interface FindingExplanation {
+  title: string;
+  meaning: string;
+  nextStep: string;
+}
 
-const RULE_GUIDANCE: Record<string, string> = {
-  'forced_arbitration.class_action_waiver': 'Check whether this waiver covers your type of claim and whether an individual claim is practical for the amount at stake.',
-  'forced_arbitration.class_action_bar': 'Identify where individual claims can be filed and whether filing fees and time are proportionate to the likely remedy.',
-  'forced_arbitration.jury_trial_waiver': 'Check whether the agreement separately restricts access to court. If a court claim is available, ask about proceeding without a jury and how the waiver applies locally.',
-  'forced_arbitration.court_access_waiver': 'Identify what forum the agreement specifies and whether a small-claims or other exception is stated.',
-};
-
-const GUIDANCE: Record<string, string> = {
-  forced_arbitration: ARBITRATION_GUIDANCE,
-  intellectual_property:
-    'Check which submissions are covered and whether rights survive account closure. Before uploading, use material you can license and ask for a narrower license if the content has commercial value. For existing use, preserve examples and verify your ownership and the licence terms before seeking removal.',
-  indemnification:
-    'Check what triggers the obligation, who controls the defence, and what costs are covered. If a demand arrives, preserve the notice and promptly check response deadlines and applicable insurance. Professional review is most useful when an actual claim or substantial legal cost is involved.',
-  surveillance:
-    'Check the data categories, recipients, privacy settings and available disclosures. Use the provider’s published objection or opt-out method where applicable and save confirmation. A privacy complaint depends on your jurisdiction, the data involved and the provider’s response.',
-  liability_caps:
-    'Compare the stated cap with the loss and check for exceptions elsewhere in the agreement. Keep receipts and evidence of the loss. A written refund request is usually simpler to pursue than a formal claim, which requires checking whether the cap applies to your circumstances.',
-  termination_asymmetry:
-    'Save the terms, notices and account history. If access was removed, check for an appeal or cure process and ask for reinstatement, data export or a refund where appropriate. Feasibility depends on the termination reason, available records and contractual or local rights.',
-  unilateral_modification:
-    'Save both versions of the terms and any notice you received. If a change led to a charge or loss of service, ask the provider in writing to reverse the change or explain the cancellation options. This is usually a low-effort first step if you have dates and records. For a formal complaint, verify that the complaint body covers the service and jurisdiction and that any filing deadline is still open.',
+const EXPLANATIONS: Record<string, FindingExplanation> = {
+  'unilateral_modification.without_notice': {
+    title: 'The company can change the terms without telling you',
+    meaning: 'The company says it can change the agreement without warning you first. You might only learn about a change after it affects you.',
+    nextStep: 'Save both versions of the terms and any message about the change. If you were charged more or lost access to something you paid for, ask the company in writing to explain or reverse the change. Include dates, receipts and the result you want.',
+  },
+  'intellectual_property.perpetual_commercial_license': {
+    title: 'The company can use what you upload for business purposes',
+    meaning: 'The company says it can use your work or let others use it without paying you. The wording may allow that use to continue after you close your account.',
+    nextStep: 'Check what material the wording covers before uploading anything valuable. If your work is already being used and you want it removed, keep a copy of the terms and screenshots showing how the work was used.',
+  },
+  'indemnification.provider_defense_costs': {
+    title: 'You may have to pay the company’s legal costs',
+    meaning: 'The terms say you may have to cover the company’s legal bills if someone brings certain claims. Check which actions by you could trigger that responsibility.',
+    nextStep: 'If the company asks you to pay, save the message and check the response deadline. Before agreeing to pay a substantial amount, check whether insurance covers it or seek local legal advice.',
+  },
+  'surveillance.advertising_disclosure': {
+    title: 'Your information can be shared with advertisers',
+    meaning: 'The company says it can give certain details about you or how you use the service to advertisers. The type of information and the reason for sharing it matter.',
+    nextStep: 'Check your privacy settings and ask what is shared and with whom. If the company offers a way to stop the sharing, use the stated method and keep its confirmation.',
+  },
+  'liability_caps.provider_paid_fees': {
+    title: 'The company may owe you only what you paid',
+    meaning: 'If something goes wrong and the company is responsible, the terms say its payment may be limited to the fees you paid. That could be much less than your loss.',
+    nextStep: 'Keep your receipts and evidence of what went wrong. Asking for a refund in writing is usually a simpler first step than starting a formal dispute. Check for exceptions in the agreement if the loss is greater than the fees you paid.',
+  },
+  'termination_asymmetry.immediate_provider_notice_for_user': {
+    title: 'The company can end the agreement sooner than you can',
+    meaning: 'The company says it can end your access or agreement immediately, while you have to give advance notice to leave.',
+    nextStep: 'Save any message about the closure. If your account was closed, ask how to appeal, get your data back, or recover any payment for unused service.',
+  },
+  'forced_arbitration.mandatory_arbitration': {
+    title: 'You may have to resolve a dispute outside court',
+    meaning: 'For certain disputes, the terms say you must go to arbitration. This is a process where an independent person decides the dispute outside court.',
+    nextStep: 'Check what kinds of disputes the clause covers and whether it allows small claims court. If a dispute has started, check deadlines and fees before deciding how to proceed.',
+  },
+  'forced_arbitration.class_action_waiver': {
+    title: 'You may be unable to join a group lawsuit',
+    meaning: 'If many customers have the same problem, the company says you cannot join them in a single lawsuit. You may need to pursue your own complaint.',
+    nextStep: 'Check which disputes the restriction covers. If your own loss is small, compare the time and possible fees of bringing an individual case with asking the company for a refund or sending a consumer complaint.',
+  },
+  'forced_arbitration.class_action_bar': {
+    title: 'You may have to bring a complaint on your own',
+    meaning: 'The company says each customer must bring their case separately, even where many customers have the same issue.',
+    nextStep: 'Find out where you can bring an individual case. Check whether the time and cost are reasonable for the amount at stake.',
+  },
+  'forced_arbitration.jury_trial_waiver': {
+    title: 'You may be giving up a jury trial',
+    meaning: 'If your dispute goes to court, the terms say a jury cannot decide it. Depending on the dispute, a judge may still be able to hear it.',
+    nextStep: 'Check whether a separate section limits access to court. If a case is already underway, ask a local adviser what the jury wording means for your options.',
+  },
+  'forced_arbitration.court_access_waiver': {
+    title: 'You may be giving up the option to take the company to court',
+    meaning: 'The company says certain disputes must be handled somewhere other than a regular court. The wording and any exceptions determine what options are available.',
+    nextStep: 'Look for where the agreement tells you to bring a complaint and whether it mentions small claims court. If the company disagrees with your reading, ask a local adviser before a deadline passes.',
+  },
 };
 
 function safeSource(url: string): string {
@@ -37,10 +75,7 @@ function safeSource(url: string): string {
   }
 }
 
-export function buildPdf(
-  record: ScanRecord,
-  describe: (finding: ClauseFinding) => string | undefined,
-): jsPDF {
+export function buildPdf(record: ScanRecord): jsPDF {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
   pdf.setProperties({ title: 'PoisonPill contract scan', creator: 'PoisonPill' });
   const margin = 46;
@@ -117,58 +152,59 @@ export function buildPdf(
   const { report } = record;
   paragraph('PoisonPill contract scan', 24, true);
   paragraph(`Source: ${safeSource(record.url)}\nScanned: ${record.scanned_at}`);
-  paragraph(`Poison Index: ${report.poison_index}/100   |   Findings: ${report.findings.length}`, 13, true);
+  const count = report.findings.length;
+  paragraph(`${count} ${count === 1 ? 'term' : 'terms'} to review`, 14, true);
   paragraph(report.truncated
-    ? 'Coverage: partial. The scan reached the input limit and analysed only the first part of the visible text.'
-    : 'Coverage: visible text extracted from the page at scan time. Linked documents, PDF viewers and embedded frames may be outside the scan.');
-  paragraph('This report flags contractual wording for review. Whether a term applies or can be challenged depends on the agreement you accepted, the facts, the jurisdiction and applicable deadlines.');
+    ? 'Only the first part of the page was checked because the text was too long.'
+    : 'This scan checked text visible on the page. Linked documents, PDFs and some embedded content may have been missed.');
+  paragraph('Use this report to see what the terms could mean for you and what to check next. Your options depend on the version you accepted, what happened, where you live and any deadlines.');
   if (record.comparison) {
     const previous = record.comparison;
-    paragraph(`Compared with the previous complete scan (${previous.previous_scanned_at}): visible text ${previous.visible_text_changed ? 'changed' : 'matched'}. Findings added: ${previous.findings_added}. Findings removed: ${previous.findings_removed}.`);
+    paragraph(`Since the last complete scan, the page text ${previous.visible_text_changed ? 'changed' : 'stayed the same'}. Terms flagged since then: ${previous.findings_added} added, ${previous.findings_removed} removed.`);
   }
-  if (report.findings.length === 0) paragraph('The supported rules produced no findings in the scanned text.');
+  if (!count) paragraph('The scan found no terms that matched the patterns it checks.');
 
   for (const [index, finding] of report.findings.entries()) {
-    room(72);
+    const explanation = EXPLANATIONS[finding.rule_id];
+    room(102);
     y += 10;
-    paragraph(`${index + 1}. ${finding.label}`, 15, true);
-    paragraph(`Rule: ${finding.rule_id} | Severity: ${finding.severity}/5 | Modality: ${finding.modality}\nSource bytes: ${finding.start_offset} to ${finding.end_offset} (end exclusive) | Exception analysis: ${finding.inversion.replaceAll('_', ' ')}`);
-    paragraph('Clause text', 11, true);
+    paragraph(`${index + 1}. ${explanation?.title ?? 'A term worth checking'}`, 15, true);
+    paragraph('What this could mean for you', 11, true);
+    paragraph(explanation?.meaning ?? 'The scan found wording that may affect your rights or what the company expects you to do. Read it together with the sections before and after it.');
+    room(45);
+    paragraph('What you can do', 11, true);
+    paragraph(explanation?.nextStep ??
+      'Save the terms and any messages about the issue. Ask the company in writing how this wording applies to you. If there is a large cost or a deadline approaching, ask a qualified local adviser.');
+    if (finding.opt_out_available) {
+      paragraph('Can you say no to this part?', 11, true);
+      paragraph('The scan found instructions for declining this part of the agreement. Check when your deadline starts, how to send the notice and what details to include. Keep proof that you sent it.');
+      if (finding.opt_out_target) paragraph(`Address listed in the terms: ${finding.opt_out_target}`);
+      if (finding.opt_out_source) paragraph(finding.opt_out_source.text);
+    } else if (finding.category === 'forced_arbitration') {
+      paragraph('Check the surrounding section for instructions on whether you can decline these dispute terms.');
+    }
+    room(45);
+    paragraph('What the terms say', 11, true);
     paragraph(finding.raw_text);
-    paragraph('Why it was flagged', 11, true);
-    paragraph(finding.reason);
-    const description = describe(finding);
-    if (description) paragraph(description);
+
+    room(48);
+    paragraph('Technical note', 11, true);
+    paragraph(`Rule: ${finding.rule_id} | Severity: ${finding.severity}/5. ${finding.reason}`, 9);
     if (finding.evidence?.length) {
       const excerpts = [...new Set(finding.evidence.map(({ text }) => text))];
-      paragraph(`Matched source wording: ${excerpts.join(' | ')}`);
+      paragraph(`Matched wording: ${excerpts.join(' | ')}`, 9);
     }
-    if (finding.opt_out_available) {
-      paragraph('Opt-out wording detected', 11, true);
-      if (finding.opt_out_source) {
-        const source = finding.opt_out_source;
-        paragraph(`Source bytes: ${source.start_offset} to ${source.end_offset}\n${source.text}`);
-      } else {
-        paragraph('Refresh the page report to capture the source wording.');
-      }
-      if (finding.opt_out_target) paragraph(`Address in the terms: ${finding.opt_out_target}`);
-      paragraph('Confirm the deadline trigger, required delivery method and address in the version you accepted. Keep proof of delivery.');
-    } else if (finding.category === 'forced_arbitration') {
-      paragraph('The scan found no associated opt-out window. Check the surrounding dispute section.');
-    }
-    paragraph('Options and practical feasibility', 11, true);
-    const specific = RULE_GUIDANCE[finding.rule_id];
-    if (specific) paragraph(specific);
-    paragraph(GUIDANCE[finding.category] ??
-      'Save the relevant terms and communications. Ask the provider to explain how the clause applies. If the issue caused a loss or a deadline may be approaching, verify your options with a qualified adviser in your jurisdiction.');
   }
 
-  if (report.findings.length) {
+  if (count) {
     room(90);
-    paragraph('If contacting the provider does not resolve the issue', 13, true);
-    paragraph('Check a local consumer protection or legal aid service for eligibility. A complaint may help obtain a response. A formal claim requires checking the proper forum, any fees, deadlines, evidence and the remedy you are seeking.');
-    paragraph('Examples of official complaint resources, where eligible:\nIndia consumer grievances: https://consumerhelpline.gov.in/public/\nU.S. financial products or services: https://www.consumerfinance.gov/complaint/');
+    paragraph('If the company cannot resolve the issue', 13, true);
+    paragraph('A local consumer protection service or legal aid office may be able to help. Before filing a formal case, check where to file, how much it costs, what proof you need and when you must act.');
+    paragraph('Examples of public complaint services:\nIndia consumer complaints: https://consumerhelpline.gov.in/public/\nU.S. financial products and services: https://www.consumerfinance.gov/complaint/');
   }
+
+  room(40);
+  paragraph(`Technical summary: Poison Index ${report.poison_index}/100. The score reflects the wording this scan flagged.`, 9);
 
   const pages = pdf.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {

@@ -69,8 +69,8 @@ correct; the tag promises the mechanism and one authored category, not coverage.
 ## Product
 
 11. **In-page annotations.** The popup can jump to the smallest rendered
-    element containing a unique exact source match. Highlighting, severity
-    badges, and a mapping for ambiguous or changed quotes remain open.
+    element containing a unique exact source match and highlight its evidence.
+    Persistent annotations, severity badges, and ambiguous quotes remain open.
 
 12. **Opt-out drafting.** The popup can prepare and copy an editable draft
     from a finding with linked opt-out evidence. A direct mail action remains
@@ -89,9 +89,9 @@ correct; the tag promises the mechanism and one authored category, not coverage.
     labels for severity. A plain list is accessible by default; annotations and
     badges often are not.
 
-16. **Rescan and SPA support.** Re-extract after client-side navigation or a
-    "load more" expansion, with debouncing, and surface the shell's 120k-character
-    cutoff instead of silently under-reporting.
+16. **Rescan after in-tab edits.** Tab activation and manual refresh rescan
+    the page and show when the text was cut off. Automatic rescans after
+    client-side navigation or a "load more" expansion remain open.
 
 17. **PDF and embed support.** Contracts are frequently PDFs. Local extraction
     inside the extension is a separate dependency and size/privacy decision; do
