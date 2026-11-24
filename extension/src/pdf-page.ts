@@ -1,5 +1,5 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import { buildPdf } from './report';
+import { buildPdf, reportFilename } from './report';
 import type { AnalyzeRequest, ScanRecord, WorkerResponse } from './types';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -107,7 +107,7 @@ if (fileInput && status && result && summary && list && download) {
   download.addEventListener('click', () => {
     if (!record) return;
     try {
-      buildPdf(record).save('poisonpill-pdf-report.pdf');
+      buildPdf(record).save(reportFilename(record));
     } catch {
       status.textContent = 'The PDF report could not be generated.';
     }

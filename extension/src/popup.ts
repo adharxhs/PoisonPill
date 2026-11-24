@@ -5,7 +5,7 @@
 // are display-only; the engine defines no thresholds for `poison_index`.
 
 import { gsap } from 'gsap';
-import { buildPdf } from './report';
+import { buildPdf, reportFilename } from './report';
 
 import type { ClauseFinding, JumpToClauseRequest, JumpToClauseResponse, PageScanResponse, ScanRecord } from './types';
 
@@ -483,8 +483,7 @@ downloadButton?.addEventListener('click', () => {
   if (!currentRecord) return;
   try {
     const pdf = buildPdf(currentRecord);
-    const day = currentRecord.scanned_at.slice(0, 10);
-    pdf.save(`poisonpill-report-${day}.pdf`);
+    pdf.save(reportFilename(currentRecord));
     status('PDF download started.');
   } catch {
     status('The PDF could not be generated. Refresh the report and try again.');

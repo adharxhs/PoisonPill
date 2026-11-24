@@ -75,6 +75,30 @@ function safeSource(url: string): string {
   }
 }
 
+export function reportFilename(record: ScanRecord): string {
+  let source = record.source_name?.replace(/\.pdf$/i, '') ?? '';
+  if (!source) {
+    try {
+      source = new URL(record.url).hostname.replace(/^www\./i, '');
+    } catch {
+      // Imported reports may have no website URL.
+    }
+  }
+  const safeSource = source.replace(/[^\p{L}\p{N}._-]+/gu, '-');
+  const limit = /^[\x00-\x7f]*$/.test(safeSource) ? 200 : 50;
+  const name = Array.from(safeSource).slice(0, limit).join('')
+    .replace(/^[._-]+|[._-]+$/g, '') || 'document';
+  const scanned = new Date(record.scanned_at);
+  const day = Number.isNaN(scanned.getTime())
+    ? 'undated'
+    : [
+      String(scanned.getFullYear()).padStart(4, '0'),
+      String(scanned.getMonth() + 1).padStart(2, '0'),
+      String(scanned.getDate()).padStart(2, '0'),
+    ].join('-');
+  return `poisonpill-${name}-${day}.pdf`;
+}
+
 export function buildPdf(record: ScanRecord): jsPDF {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
   pdf.setProperties({ title: 'PoisonPill contract scan', creator: 'PoisonPill' });
