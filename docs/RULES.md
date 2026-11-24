@@ -14,10 +14,13 @@ category requires editing `rules.rs` control flow, the design has failed.
 | `fixtures/golden/` | One canonical envelope per case, written only by `make goldens`. |
 | `engine/tests/rule_format.rs` | Proves a synthetic category can be registered at runtime as data. |
 
-The registry includes `forced_arbitration` and
-`unilateral_modification.without_notice`. The modification rule requires
-explicit provider permission to amend the terms and wording denying notice
-in the same clause.
+The registry includes arbitration and waivers, no-notice modification, perpetual
+commercial IP grants, user indemnity with legal costs, advertising disclosures,
+provider liability capped at fees paid, and asymmetric termination notice.
+The first three new categories use the product taxonomy weights. Liability caps
+use 3.5 and termination asymmetry uses 4.0 as provisional review weights, since
+the product taxonomy did not assign either a weight. These rules look for
+concrete language within one clause.
 
 ## `RuleSpec`
 

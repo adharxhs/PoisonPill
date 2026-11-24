@@ -6,12 +6,11 @@ correct; the tag promises the mechanism and one authored category, not coverage.
 
 ## Engine: detection
 
-1. **Expand category coverage.** Unilateral Change has an initial rule for
-   explicit no-notice amendments. Liability Caps, Surveillance & Data Cascades,
-   and Termination Asymmetry remain to be authored. Each needs lexicon data, `RuleSpec`s, a registration entry, and — the
-   gate — a corpus with hard negatives at least 2× the positives. Do not merge a
-   category without its hard negatives; a thin lexicon is a false-positive
-   generator. Follow [`RULES.md`](RULES.md); do not add matcher branches.
+1. **Expand category coverage.** The registry has initial rules for no-notice
+   changes, perpetual commercial IP grants, user indemnification with legal
+   fees, advertising data disclosure, fees-paid liability caps, and asymmetric
+   termination notice. Extend those narrowly with a corpus containing at least
+   two hard negatives per positive. Follow [the rule format](RULES.md).
 
 2. ~~**Broaden `MANDATORY_ARBITRATION` for real phrasings.**~~ *Done — decision
    17.* "shall be settled by

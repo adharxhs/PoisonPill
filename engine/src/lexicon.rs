@@ -231,6 +231,106 @@ pub const MODIFICATION_GUARDS: &[&str] = &[
     "does not mean we may",
 ];
 
+pub const USER_CONTENT_GRANTS: &[&str] = &[
+    "you grant us",
+    "you hereby grant us",
+    "you grant the company",
+];
+pub const USER_CONTENT_ASSETS: &[&str] = &["your content", "your user content", "your submissions"];
+pub const PERPETUAL_LICENSE: &[&str] = &["perpetual", "irrevocable"];
+pub const COMMERCIAL_LICENSE: &[&str] = &[
+    "commercialize",
+    "commercial purposes",
+    "sublicensable",
+    "sublicense",
+];
+pub const ROYALTY_FREE: &[&str] = &["royalty free"];
+pub const SERVICE_ONLY_LICENSE: &[&str] = &[
+    "solely to provide the service",
+    "only to operate the service",
+    "solely to host your content",
+];
+
+pub const USER_DEFENSE: &[&str] = &[
+    "you must defend and indemnify",
+    "you shall indemnify",
+    "you agree to indemnify",
+];
+pub const PROVIDER_INDEMNITY: &[&str] = &[
+    "indemnify us",
+    "hold us harmless",
+    "hold harmless the company",
+    "indemnify the provider",
+];
+pub const LEGAL_FEES: &[&str] = &[
+    "attorney fees",
+    "attorneys fees",
+    "legal fees",
+    "legal costs",
+];
+pub const LIMITED_INDEMNITY: &[&str] = &[
+    "solely to the extent caused by your",
+    "only for claims arising from your",
+    "solely for your",
+    "only to the extent arising from your",
+];
+
+pub const SHARE_USER_DATA: &[&str] = &[
+    "we may sell your personal information",
+    "we may sell your personal data",
+    "we may share your personal information",
+    "we may disclose your personal data",
+    "we may share your usage data",
+];
+pub const ADVERTISING_RECIPIENTS: &[&str] = &[
+    "to advertisers",
+    "with advertisers",
+    "to advertising partners",
+    "with advertising partners",
+    "for their own marketing purposes",
+];
+pub const RESTRICTED_DISCLAIMERS: &[&str] = &[
+    "only with your consent",
+    "only with your explicit consent",
+    "solely to provide the service",
+    "only on our behalf",
+    "if you opt in",
+];
+
+pub const PROVIDER_LIABILITY: &[&str] = &["our total liability", "our aggregate liability"];
+pub const LIABILITY_MAXIMUM: &[&str] = &["shall not exceed", "will not exceed", "is limited to"];
+pub const PAID_FEE_CAP: &[&str] = &[
+    "the fees you paid",
+    "the amount you paid",
+    "fees paid by you",
+    "fees paid to us",
+];
+pub const LIMITED_CAP_SCOPE: &[&str] = &[
+    "solely for indirect damages",
+    "only for indirect damages",
+    "for equitable relief only",
+];
+
+pub const IMMEDIATE_TERMINATION: &[&str] = &[
+    "we may terminate your account immediately",
+    "we may immediately terminate your account",
+    "we may terminate this agreement immediately",
+];
+pub const CUSTOMER_NOTICE: &[&str] = &[
+    "you must give us",
+    "you must provide us with",
+    "you may terminate only upon",
+];
+pub const TERMINATION_NOTICE: &[&str] =
+    &["prior written notice", "days written notice", "days notice"];
+pub const TERMINATION_GUARDS: &[&str] = &[
+    "only for material breach",
+    "only in case of fraud",
+    "after a reasonable opportunity to cure",
+    "after the cure period",
+    "either party may terminate immediately",
+];
+
 /// Unilateral discretion markers. These raise `mu` in scoring.
 pub const UNILATERAL_DISCRETION: &[&str] = &[
     "sole discretion",
